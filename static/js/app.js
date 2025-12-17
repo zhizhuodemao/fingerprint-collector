@@ -1,13 +1,8 @@
 /**
- * 浏览器指纹收集器 - 主入口
- * ES Modules 版本
+ * Fingerprint Collector - Simplified Version
  */
 
-// 工具模块
-import { calculateHash } from './utils/hash.js';
-import { loadConfig, sendFingerprint, fetchIpInfo, lookupIp, fetchTlsFingerprint } from './utils/api.js';
-
-// 收集器模块
+// 收集器
 import {
     collectNavigator,
     collectScreen,
@@ -15,6 +10,7 @@ import {
     collectWebGL,
     collectAudio,
     collectFonts,
+    collectMath,
     detectIncognito,
     detectAutomation,
     collectFeatures,
@@ -25,61 +21,181 @@ import {
     getWebRtcIps
 } from './collectors/index.js';
 
-// UI 模块
-import { setStatus } from './ui/status.js';
-import { displayResults, displayServerResult, displayIpInfo, displayWebRtcIp, displayTlsInfo } from './ui/display.js';
-import { showTlsToast, updateTlsLink } from './ui/toast.js';
-import { initTheme, bindThemeToggle } from './ui/theme.js';
+// 工具
+import { loadConfig, sendFingerprint, fetchTlsFingerprint } from './utils/api.js';
+import { collectStableSignals, generateDeviceId } from './utils/deviceId.js';
 
 /**
- * 指纹收集器应用
+ * 主应用类
  */
 class FingerprintApp {
     constructor() {
-        this.fingerprint = {};
+        this.fingerprint = null;
+        this.tlsData = null;
+        this.serverData = null;
         this.config = null;
+        this.init();
     }
 
-    /**
-     * 初始化应用
-     */
     async init() {
+        // 加载配置
         this.config = await loadConfig();
+
+        // 绑定事件
         this.bindEvents();
-        updateTlsLink(this.config);
-        showTlsToast(this.config);
+
+        // 设置 TLS 服务器链接
+        const tlsLink = document.getElementById('tlsServerLink');
+        if (tlsLink && this.config) {
+            tlsLink.href = this.config.tls_url;
+        }
+
+        // 恢复之前的数据
+        this.restoreData();
+
+        // 显示 TLS 提示弹窗
+        this.showTlsPrompt();
     }
 
-    /**
-     * 绑定事件
-     */
-    bindEvents() {
-        document.getElementById('collectBtn').addEventListener('click', () => this.collect());
-        document.getElementById('getTlsBtn').addEventListener('click', () => this.getTlsFingerprint());
-        document.getElementById('exportBtn').addEventListener('click', () => this.exportJSON());
-        document.getElementById('copyDataBtn').addEventListener('click', () => this.copyJSON());
+    // 保存数据到 sessionStorage
+    saveData() {
+        const data = {
+            fingerprint: this.fingerprint,
+            tlsData: this.tlsData,
+            serverData: this.serverData,
+        };
+        sessionStorage.setItem('fingerprint-data', JSON.stringify(data));
     }
 
-    /**
-     * 收集指纹
-     */
-    async collect() {
-        setStatus('正在收集指纹...', 'loading');
+    // 从 sessionStorage 恢复数据
+    restoreData() {
+        const saved = sessionStorage.getItem('fingerprint-data');
+        if (!saved) return;
 
         try {
-            // 启动耗时的异步任务（并行执行）
-            const incognitoPromise = detectIncognito();
-            const canvasPromise = collectCanvas();
-            const audioPromise = collectAudio();
-            const tlsPromise = fetchTlsFingerprint(this.config);
+            const data = JSON.parse(saved);
+            this.fingerprint = data.fingerprint;
+            this.tlsData = data.tlsData;
+            this.serverData = data.serverData;
 
-            // 收集同步数据
+            // 如果有数据，显示结果
+            if (this.fingerprint) {
+                this.displayResults({ success: true });
+            }
+            if (this.tlsData) {
+                document.getElementById('tlsJson').textContent = JSON.stringify(this.tlsData, null, 2);
+                const tlsId = this.tlsData?.ja4?.substring(0, 16) ||
+                              this.tlsData?.ja3_hash?.substring(0, 16) || '-';
+                document.getElementById('tlsId').textContent = tlsId;
+            }
+        } catch (e) {
+            console.error('Failed to restore data:', e);
+        }
+    }
+
+    showTlsPrompt() {
+        // 检查是否已经提示过（本次会话）
+        if (sessionStorage.getItem('tls-prompt-shown')) {
+            return;
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>TLS Server Setup</h3>
+                </div>
+                <div class="modal-body">
+                    <p>为获取完整的 TLS 指纹，请先在新标签页中打开 TLS Server 并接受证书。</p>
+                    <p class="modal-note">这是一次性操作，完成后即可自动采集 TLS 指纹。</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn" id="modalSkipBtn">跳过</button>
+                    <button class="btn btn-primary" id="modalOpenBtn">打开 TLS Server</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // 绑定按钮事件
+        document.getElementById('modalOpenBtn').addEventListener('click', () => {
+            window.open(this.config?.tls_url || 'https://localhost:8443', '_blank');
+            sessionStorage.setItem('tls-prompt-shown', '1');
+            modal.remove();
+        });
+
+        document.getElementById('modalSkipBtn').addEventListener('click', () => {
+            sessionStorage.setItem('tls-prompt-shown', '1');
+            modal.remove();
+        });
+
+        // 点击遮罩关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                sessionStorage.setItem('tls-prompt-shown', '1');
+                modal.remove();
+            }
+        });
+    }
+
+    bindEvents() {
+        // 收集按钮
+        document.getElementById('collectBtn')?.addEventListener('click', () => this.collect());
+
+        // TLS 获取按钮
+        document.getElementById('fetchTlsBtn')?.addEventListener('click', () => this.fetchTls());
+
+        // 主题切换
+        document.getElementById('themeToggle')?.addEventListener('click', () => this.toggleTheme());
+
+        // 复制按钮 - 直接从 pre 元素读取内容
+        document.getElementById('copyBrowserBtn')?.addEventListener('click', () => {
+            const content = document.getElementById('browserJson')?.textContent;
+            this.copyToClipboard(content, 'copyBrowserBtn');
+        });
+        document.getElementById('copyTlsBtn')?.addEventListener('click', () => {
+            const content = document.getElementById('tlsJson')?.textContent;
+            this.copyToClipboard(content, 'copyTlsBtn');
+        });
+        document.getElementById('copyServerBtn')?.addEventListener('click', () => {
+            const content = document.getElementById('serverJson')?.textContent;
+            this.copyToClipboard(content, 'copyServerBtn');
+        });
+
+        // ID 复制按钮
+        document.querySelectorAll('.copy-btn[data-copy]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.dataset.copy;
+                const el = document.getElementById(targetId);
+                if (el) {
+                    this.copyToClipboard(el.textContent, btn);
+                }
+            });
+        });
+    }
+
+    setStatus(text, type = '') {
+        const status = document.getElementById('status');
+        if (status) {
+            status.textContent = text;
+            status.className = 'status ' + type;
+        }
+    }
+
+    async collect() {
+        this.setStatus('Collecting...', 'collecting');
+
+        try {
+            // 收集浏览器指纹
             this.fingerprint = {
                 timestamp: new Date().toISOString(),
                 navigator: collectNavigator(),
                 screen: collectScreen(),
                 webgl: collectWebGL(),
                 fonts: collectFonts(),
+                math: collectMath(),
                 automation: detectAutomation(),
                 features: collectFeatures(),
                 timing: collectTiming(),
@@ -88,184 +204,154 @@ class FingerprintApp {
                 mimeTypes: collectMimeTypes(),
             };
 
-            // 等待并行任务完成
-            const [canvas, audio, incognito, tlsResult] = await Promise.all([
-                canvasPromise,
-                audioPromise,
-                incognitoPromise,
-                tlsPromise.catch(() => null), // TLS 失败不影响主流程
+            // 异步收集
+            const [canvas, audio, incognito, webrtcIps] = await Promise.all([
+                collectCanvas(),
+                collectAudio(),
+                detectIncognito(),
+                getWebRtcIps().catch(() => null),
             ]);
 
-            // 合并异步结果
             this.fingerprint.canvas = canvas;
             this.fingerprint.audio = audio;
             this.fingerprint.incognito = incognito;
+            this.fingerprint.webrtcIps = webrtcIps;
 
-            // 处理 TLS 指纹
-            if (tlsResult && tlsResult.success) {
-                this.fingerprint.tls = tlsResult.fingerprint;
-                displayTlsInfo(tlsResult);
-            }
-
-            // 计算指纹哈希
-            this.fingerprint.hash = await calculateHash(JSON.stringify(this.fingerprint));
-
-            // 显示结果
-            displayResults(this.fingerprint);
+            // 生成设备ID
+            const stableSignals = collectStableSignals(this.fingerprint);
+            const deviceIdResult = generateDeviceId(stableSignals);
+            this.fingerprint.deviceId = deviceIdResult;
 
             // 发送到服务器
-            const serverResult = await sendFingerprint(this.fingerprint);
-            displayServerResult(serverResult);
+            const result = await sendFingerprint(this.fingerprint);
 
-            // 获取 IP 详细信息
-            setStatus('正在查询 IP 信息...', 'loading');
-            const ipResult = await fetchIpInfo();
-            if (ipResult && ipResult.success) {
-                displayIpInfo(ipResult.ip_info);
-            }
+            if (result.success) {
+                this.serverData = result.fingerprint?.server || null;
+                this.displayResults(result);
 
-            // 获取 WebRTC IP
-            await this.fetchWebRtcIp();
+                // 自动获取 TLS 指纹
+                this.setStatus('Fetching TLS...', 'collecting');
+                await this.fetchTls(true); // silent mode
 
-            setStatus('指纹收集完成!', 'success');
-        } catch (error) {
-            console.error('收集失败:', error);
-            setStatus(`收集失败: ${error.message}`, 'error');
-        }
-    }
+                // 保存数据
+                this.saveData();
 
-    /**
-     * 获取 WebRTC IP
-     */
-    async fetchWebRtcIp() {
-        try {
-            const ips = await getWebRtcIps();
-
-            // 显示 WebRTC 本地 IP
-            if (ips.local.length > 0) {
-                const localIp = ips.local[0];
-                displayWebRtcIp('webrtcIp', localIp);
-                // 查询 IP 位置
-                const location = await this.lookupIpLocation(localIp);
-                if (location) {
-                    displayWebRtcIp('webrtcIp', localIp, location);
-                }
+                this.setStatus('Collected successfully', 'success');
             } else {
-                displayWebRtcIp('webrtcIp', '未检测到');
+                this.setStatus('Collection failed', 'error');
             }
 
-            // 显示 WebRTC STUN IP
-            if (ips.public.length > 0) {
-                const publicIp = ips.public[0];
-                displayWebRtcIp('webrtcStun', publicIp);
-                // 查询 IP 位置
-                const location = await this.lookupIpLocation(publicIp);
-                if (location) {
-                    displayWebRtcIp('webrtcStun', publicIp, location);
-                }
-            } else {
-                displayWebRtcIp('webrtcStun', '未检测到');
-            }
         } catch (error) {
-            console.log('WebRTC IP 检测失败:', error.message);
-            displayWebRtcIp('webrtcIp', '不支持/已禁用');
-            displayWebRtcIp('webrtcStun', '不支持/已禁用');
+            console.error('Collection error:', error);
+            this.setStatus('Error: ' + error.message, 'error');
         }
     }
 
-    /**
-     * 查询 IP 位置
-     */
-    async lookupIpLocation(ip) {
+    async fetchTls(silent = false) {
         try {
-            const result = await lookupIp(ip);
-            if (result && result.success && result.ip_info) {
-                const info = result.ip_info;
-                if (info.country !== '本地网络' && info.country !== '查询失败') {
-                    return info.city || info.country;
+            if (!silent) {
+                this.setStatus('Fetching TLS...', 'collecting');
+            }
+            const result = await fetchTlsFingerprint(this.config);
+
+            if (result && result.success) {
+                this.tlsData = result.fingerprint;
+                document.getElementById('tlsJson').textContent = JSON.stringify(this.tlsData, null, 2);
+
+                // 更新 TLS ID (优先使用 JA4，更稳定)
+                const tlsId = this.tlsData?.ja4?.substring(0, 16) ||
+                              this.tlsData?.ja3_hash?.substring(0, 16) || '-';
+                document.getElementById('tlsId').textContent = tlsId;
+
+                // 保存数据
+                this.saveData();
+
+                if (!silent) {
+                    this.setStatus('TLS fetched', 'success');
                 }
-            }
-        } catch (error) {
-            // 忽略查询错误
-        }
-        return null;
-    }
-
-    /**
-     * 单独获取 TLS 指纹
-     */
-    async getTlsFingerprint() {
-        setStatus('正在获取 TLS 指纹...', 'loading');
-
-        try {
-            const tlsResult = await fetchTlsFingerprint(this.config);
-            if (tlsResult && tlsResult.success) {
-                this.fingerprint.tls = tlsResult.fingerprint;
-                displayTlsInfo(tlsResult);
-                setStatus('TLS 指纹获取成功!', 'success');
+                return true;
             } else {
-                setStatus('TLS 指纹获取失败', 'error');
+                document.getElementById('tlsJson').textContent = 'TLS 指纹获取失败。请先访问 TLS Server 并接受证书。';
+                if (!silent) {
+                    this.setStatus('TLS fetch failed', 'error');
+                }
+                return false;
             }
         } catch (error) {
-            console.error('TLS 获取失败:', error);
-            setStatus(`TLS 获取失败: ${error.message}`, 'error');
+            document.getElementById('tlsJson').textContent = 'TLS 指纹获取失败。请先访问 TLS Server 并接受证书。';
+            if (!silent) {
+                this.setStatus('TLS error', 'error');
+            }
+            return false;
         }
     }
 
-    /**
-     * 导出 JSON
-     */
-    exportJSON() {
-        const data = JSON.stringify(this.fingerprint, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `fingerprint-${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+    displayResults(result) {
+        // 显示所有卡片
+        document.getElementById('deviceCard').style.display = 'block';
+        document.getElementById('browserCard').style.display = 'block';
+        document.getElementById('tlsCard').style.display = 'block';
+        document.getElementById('serverCard').style.display = 'block';
+
+        // Device ID
+        const deviceId = this.fingerprint.deviceId;
+        document.getElementById('deviceCoreId').textContent = deviceId?.coreId || '-';
+        document.getElementById('tlsId').textContent = result.tls_id || '-';
+        document.getElementById('collectedAt').textContent = new Date().toLocaleString('zh-CN');
+
+        // Confidence badge
+        const confidence = deviceId?.confidence || 0;
+        const badge = document.getElementById('confidenceBadge');
+        badge.textContent = `${confidence}% Confidence`;
+        badge.className = confidence >= 80 ? 'badge success' : 'badge';
+
+        // Browser JSON (不包含 deviceId，避免重复)
+        const browserData = { ...this.fingerprint };
+        delete browserData.deviceId;
+        document.getElementById('browserJson').textContent = JSON.stringify(browserData, null, 2);
+
+        // Server JSON
+        if (this.serverData) {
+            document.getElementById('serverJson').textContent = JSON.stringify(this.serverData, null, 2);
+        }
     }
 
-    /**
-     * 复制 JSON 到剪贴板
-     */
-    async copyJSON() {
-        const btn = document.getElementById('copyDataBtn');
-        const fullData = document.getElementById('fullData').textContent;
+    copyToClipboard(text, btnOrId) {
+        const btn = typeof btnOrId === 'string' ? document.getElementById(btnOrId) : btnOrId;
 
-        if (fullData === '-') {
+        if (!text || text === '-' || text === 'null') {
             return;
         }
 
-        try {
-            await navigator.clipboard.writeText(fullData);
-            btn.classList.add('copied');
-            btn.querySelector('span').textContent = 'Copied!';
+        navigator.clipboard.writeText(text).then(() => {
+            if (btn) {
+                btn.classList.add('copied');
+                const span = btn.querySelector('span');
+                const originalText = span?.textContent;
+                if (span) {
+                    span.textContent = 'Copied!';
+                }
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    if (span && originalText) {
+                        span.textContent = originalText;
+                    }
+                }, 2000);
+            }
+        }).catch(err => {
+            console.error('Copy failed:', err);
+        });
+    }
 
-            setTimeout(() => {
-                btn.classList.remove('copied');
-                btn.querySelector('span').textContent = 'Copy JSON';
-            }, 2000);
-        } catch (error) {
-            console.error('复制失败:', error);
-        }
+    toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        const isDark = current === 'dark' ||
+            (!current && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        const next = isDark ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('fingerprint-theme', next);
     }
 }
 
-// 初始化应用
-function initApp() {
-    // 初始化主题（优先执行避免闪烁）
-    initTheme();
-    bindThemeToggle();
-
-    // 初始化指纹收集器
-    const app = new FingerprintApp();
-    app.init();
-}
-
-// ES modules 是 deferred 的，DOM 可能已经加载完成
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-} else {
-    initApp();
-}
+// 启动应用
+new FingerprintApp();

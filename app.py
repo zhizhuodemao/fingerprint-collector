@@ -155,6 +155,47 @@ def init_db():
             )
         ''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_created_at ON fingerprints(created_at DESC)')
+
+        # 设备指纹表（用于设备唯一性判定）
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS device_fingerprints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT UNIQUE NOT NULL,
+                core_id TEXT NOT NULL,
+                extended_id TEXT,
+                audio TEXT,
+                canvas_geometry TEXT,
+                webgl_renderer TEXT,
+                webgl_vendor TEXT,
+                fonts TEXT,
+                math TEXT,
+                screen TEXT,
+                timezone TEXT,
+                platform TEXT,
+                hardware_concurrency INTEGER,
+                confidence INTEGER,
+                first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                visit_count INTEGER DEFAULT 1
+            )
+        ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_core_id ON device_fingerprints(core_id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_device_id ON device_fingerprints(device_id)')
+
+        # 设备访问记录表
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS device_visits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT NOT NULL,
+                ip_address TEXT,
+                user_agent TEXT,
+                match_type TEXT,
+                confidence INTEGER,
+                visit_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (device_id) REFERENCES device_fingerprints(device_id)
+            )
+        ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_device_visits_device_id ON device_visits(device_id)')
         conn.commit()
     print(f"[INFO] Database initialized at {DB_PATH}")
 
@@ -216,6 +257,181 @@ def delete_all_fingerprints():
         cursor = conn.execute('DELETE FROM fingerprints')
         conn.commit()
         return cursor.rowcount
+
+
+# ============================================
+# 设备匹配相关函数
+# ============================================
+
+def match_device(device_id_data):
+    """
+    设备匹配逻辑
+    三层匹配策略：
+    1. coreId 精确匹配 → 置信度 95%+，同一设备
+    2. 核心信号 ≥3/4 匹配 → 置信度 70-90%，可能同一设备
+    3. 环境信号相似度 > 0.6 → 置信度 50-70%，需人工确认
+    """
+    if not device_id_data:
+        return None
+
+    core_id = device_id_data.get('coreId') or device_id_data.get('fullCoreId', '')[:32]
+    signals = device_id_data.get('signals', {})
+
+    with get_db() as conn:
+        # 第一层：精确匹配 core_id
+        row = conn.execute(
+            'SELECT * FROM device_fingerprints WHERE core_id = ?',
+            (core_id,)
+        ).fetchone()
+
+        if row:
+            # 找到匹配，更新访问记录
+            conn.execute(
+                'UPDATE device_fingerprints SET last_seen = ?, visit_count = visit_count + 1 WHERE core_id = ?',
+                (datetime.now().isoformat(), core_id)
+            )
+            conn.commit()
+
+            return {
+                'match': True,
+                'match_type': 'exact',
+                'confidence': 95 + (5 if device_id_data.get('extendedId') == row['extended_id'] else 0),
+                'device_id': row['device_id'],
+                'first_seen': row['first_seen'],
+                'visit_count': row['visit_count'] + 1,
+            }
+
+        # 第二层：模糊匹配核心信号
+        all_devices = conn.execute('SELECT * FROM device_fingerprints').fetchall()
+
+        best_match = None
+        best_score = 0
+
+        for device in all_devices:
+            core_matches = sum([
+                signals.get('audio') == device['audio'],
+                signals.get('canvasGeometry') == device['canvas_geometry'],
+                signals.get('webglRenderer') == device['webgl_renderer'],
+                signals.get('math') == device['math'],
+            ])
+
+            if core_matches >= 3:
+                score = 70 + (core_matches - 3) * 10
+                if score > best_score:
+                    best_score = score
+                    best_match = {
+                        'match': True,
+                        'match_type': 'fuzzy_core',
+                        'confidence': score,
+                        'device_id': device['device_id'],
+                        'first_seen': device['first_seen'],
+                        'visit_count': device['visit_count'],
+                        'core_matches': core_matches,
+                    }
+
+            # 第三层：环境信号相似度
+            elif core_matches >= 2:
+                env_matches = sum([
+                    signals.get('screen') == device['screen'],
+                    signals.get('timezone') == device['timezone'],
+                    signals.get('platform') == device['platform'],
+                    signals.get('hardwareConcurrency') == device['hardware_concurrency'],
+                ])
+                env_total = 4
+                env_similarity = env_matches / env_total
+
+                if env_similarity > 0.6:
+                    score = 50 + env_similarity * 20
+                    if score > best_score:
+                        best_score = score
+                        best_match = {
+                            'match': True,
+                            'match_type': 'fuzzy_env',
+                            'confidence': int(score),
+                            'device_id': device['device_id'],
+                            'first_seen': device['first_seen'],
+                            'visit_count': device['visit_count'],
+                            'core_matches': core_matches,
+                            'env_similarity': env_similarity,
+                        }
+
+        if best_match:
+            # 更新匹配设备的访问记录
+            conn.execute(
+                'UPDATE device_fingerprints SET last_seen = ?, visit_count = visit_count + 1 WHERE device_id = ?',
+                (datetime.now().isoformat(), best_match['device_id'])
+            )
+            conn.commit()
+            best_match['visit_count'] += 1
+            return best_match
+
+    # 新设备
+    return {
+        'match': False,
+        'match_type': 'new',
+        'confidence': 0,
+        'device_id': None,
+    }
+
+
+def save_device_fingerprint(device_id_data, ip_address, user_agent):
+    """保存设备指纹"""
+    if not device_id_data:
+        return None
+
+    core_id = device_id_data.get('coreId') or device_id_data.get('fullCoreId', '')[:32]
+    extended_id = device_id_data.get('extendedId') or device_id_data.get('fullExtendedId', '')[:32]
+    signals = device_id_data.get('signals', {})
+
+    # 使用 fullCoreId 作为 device_id（更稳定）
+    device_id = device_id_data.get('fullCoreId', core_id)
+
+    with get_db() as conn:
+        try:
+            conn.execute('''
+                INSERT INTO device_fingerprints (
+                    device_id, core_id, extended_id,
+                    audio, canvas_geometry, webgl_renderer, webgl_vendor,
+                    fonts, math, screen, timezone, platform, hardware_concurrency,
+                    confidence
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                device_id,
+                core_id,
+                extended_id,
+                signals.get('audio'),
+                signals.get('canvasGeometry'),
+                signals.get('webglRenderer'),
+                signals.get('webglVendor'),
+                signals.get('fonts'),
+                signals.get('math'),
+                signals.get('screen'),
+                signals.get('timezone'),
+                signals.get('platform'),
+                signals.get('hardwareConcurrency'),
+                device_id_data.get('confidence', 0),
+            ))
+            conn.commit()
+            return device_id
+        except sqlite3.IntegrityError:
+            # 设备已存在，更新
+            conn.execute('''
+                UPDATE device_fingerprints SET
+                    extended_id = ?, last_seen = ?, visit_count = visit_count + 1
+                WHERE device_id = ?
+            ''', (extended_id, datetime.now().isoformat(), device_id))
+            conn.commit()
+            return device_id
+
+
+def record_device_visit(device_id, ip_address, user_agent, match_type, confidence):
+    """记录设备访问"""
+    with get_db() as conn:
+        conn.execute('''
+            INSERT INTO device_visits (device_id, ip_address, user_agent, match_type, confidence)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (device_id, ip_address, user_agent, match_type, confidence))
+        conn.commit()
 
 
 # 初始化数据库
@@ -493,6 +709,38 @@ def collect_fingerprint():
         # 综合指纹 ID
         combined_id = generate_combined_fingerprint_id(browser_id, tls_id)
 
+        # 设备ID处理
+        device_id_data = client_fp.get('deviceId')
+        device_match = None
+        device_id = None
+
+        if device_id_data:
+            # 设备匹配
+            device_match = match_device(device_id_data)
+
+            if device_match and device_match.get('match'):
+                # 匹配到已有设备
+                device_id = device_match['device_id']
+            else:
+                # 新设备，保存
+                device_id = save_device_fingerprint(
+                    device_id_data,
+                    server_fp.get('ip'),
+                    server_fp.get('user_agent')
+                )
+                if device_match:
+                    device_match['device_id'] = device_id
+
+            # 记录访问
+            if device_id:
+                record_device_visit(
+                    device_id,
+                    server_fp.get('ip'),
+                    server_fp.get('user_agent'),
+                    device_match.get('match_type', 'new') if device_match else 'new',
+                    device_match.get('confidence', 0) if device_match else 0
+                )
+
         # 使用浏览器 ID 作为主 ID
         full_fingerprint['id'] = browser_id
         full_fingerprint['browser_id'] = browser_id
@@ -502,14 +750,20 @@ def collect_fingerprint():
         # 存储到 SQLite
         save_fingerprint(browser_id, full_fingerprint)
 
-        return jsonify({
+        response_data = {
             'success': True,
             'id': browser_id,
             'browser_id': browser_id,
             'tls_id': tls_id,
             'combined_id': combined_id,
             'fingerprint': full_fingerprint,
-        })
+        }
+
+        # 添加设备匹配信息
+        if device_match:
+            response_data['device_match'] = device_match
+
+        return jsonify(response_data)
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

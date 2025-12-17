@@ -7,10 +7,9 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/simple.css">
     <script>
-        // 立即应用主题，防止闪烁
         (function() {
             const saved = localStorage.getItem('fingerprint-theme');
             if (saved) {
@@ -22,539 +21,136 @@
     </script>
 </head>
 <body>
-    <div class="app">
+    <div class="container">
         <!-- Header -->
         <header class="header">
-            <div class="header-content">
-                <div class="logo">
-                    <div class="logo-icon">
-                        <svg viewBox="0 0 48 48" fill="none">
-                            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
-                            <circle cx="24" cy="24" r="14" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
-                            <circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="1.5" opacity="0.7"/>
-                            <circle cx="24" cy="24" r="3" fill="currentColor"/>
-                        </svg>
-                    </div>
-                    <div class="logo-text">
-                        <h1>Fingerprint</h1>
-                        <span class="logo-subtitle">Browser Identity Collector</span>
-                    </div>
-                </div>
-                <nav class="nav">
-                    <a href="/" class="nav-link active">Collect</a>
-                    <a href="/history" class="nav-link">History</a>
-                    <a href="/api-docs" class="nav-link">API</a>
-                    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
-                        <span class="theme-toggle-thumb">
-                            <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="5"/>
-                                <line x1="12" y1="1" x2="12" y2="3"/>
-                                <line x1="12" y1="21" x2="12" y2="23"/>
-                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                                <line x1="1" y1="12" x2="3" y2="12"/>
-                                <line x1="21" y1="12" x2="23" y2="12"/>
-                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                            </svg>
-                            <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                            </svg>
-                        </span>
-                    </button>
-                </nav>
+            <div class="logo">
+                <svg viewBox="0 0 32 32" fill="none" class="logo-icon">
+                    <circle cx="16" cy="16" r="12" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
+                    <circle cx="16" cy="16" r="8" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+                    <circle cx="16" cy="16" r="4" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="16" cy="16" r="1.5" fill="currentColor"/>
+                </svg>
+                <span class="logo-text">Fingerprint Collector</span>
             </div>
+            <nav class="nav">
+                <a href="/" class="nav-link active">Collect</a>
+                <a href="/history" class="nav-link">History</a>
+                <a href="/api-docs" class="nav-link">API</a>
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                    <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
+            </nav>
         </header>
 
-        <!-- Hero Section -->
-        <section class="hero">
-            <div class="hero-content">
-                <div class="hero-text">
-                    <p class="hero-label">Browser Fingerprinting</p>
-                    <h2 class="hero-title">Discover your<br><em>digital identity</em></h2>
-                    <p class="hero-description">
-                        Collect Canvas, WebGL, Audio, Navigator, Screen, and Font fingerprints
-                        from your browser environment.
-                    </p>
-                    <div class="hero-actions">
-                        <button id="collectBtn" class="btn btn-primary">
-                            <span class="btn-text">Start Collection</span>
-                            <span class="btn-icon">
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </span>
-                        </button>
-                        <button id="exportBtn" class="btn btn-secondary">Export JSON</button>
-                    </div>
-                </div>
-                <div class="hero-visual">
-                    <div class="fingerprint-rings" id="fingerprintVisual">
-                        <div class="ring ring-1"></div>
-                        <div class="ring ring-2"></div>
-                        <div class="ring ring-3"></div>
-                        <div class="ring ring-4"></div>
-                        <div class="ring-center">
-                            <span id="statusIcon">?</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Status Bar -->
-        <div id="status" class="status-bar">
-            <div class="status-content">
-                <div class="status-indicator"></div>
-                <span class="status-text">Ready to collect</span>
-            </div>
-        </div>
-
-        <!-- Summary Card -->
-        <section class="summary-section" id="summaryCard" style="display:none;">
-            <div class="summary-grid">
-                <div class="summary-item">
-                    <span class="summary-label">Browser ID</span>
-                    <span class="summary-value mono" id="browserId">-</span>
-                </div>
-                <div class="summary-item">
-                    <span class="summary-label">TLS ID</span>
-                    <span class="summary-value mono" id="tlsId">-</span>
-                </div>
-                <div class="summary-item">
-                    <span class="summary-label">Combined ID</span>
-                    <span class="summary-value mono" id="combinedId">-</span>
-                </div>
-                <div class="summary-item">
-                    <span class="summary-label">Collected At</span>
-                    <span class="summary-value" id="fpTime">-</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- Results Grid -->
-        <section class="results-section">
-            <div class="section-header">
-                <h3>Collection Results</h3>
-                <p>Detailed fingerprint data from your browser</p>
-            </div>
-
-            <!-- Network & Identity Group -->
-            <div class="results-group">
-                <div class="group-header">
-                    <div class="group-line"></div>
-                    <span class="group-title">Network & Identity</span>
-                    <div class="group-line"></div>
-                </div>
-                <div class="results-grid">
-                    <!-- IP Info - Featured -->
-                    <article class="card card-featured">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <circle cx="12" cy="10" r="3"/>
-                                    <path d="M12 2a8 8 0 0 0-8 8c0 5.4 7 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/>
-                                </svg>
-                            </div>
-                            <h4>IP & Location</h4>
-                            <span class="card-badge" id="ipRiskBadge">-</span>
-                        </div>
-                        <div class="ip-info-grid" id="ipInfoGrid">
-                            <div class="ip-info-item">
-                                <span class="ip-info-label">IP 地址</span>
-                                <span class="ip-info-value" id="ipAddress">-</span>
-                            </div>
-                            <div class="ip-info-item">
-                                <span class="ip-info-label">WebRTC IP</span>
-                                <span class="ip-info-value" id="webrtcIp">-</span>
-                            </div>
-                            <div class="ip-info-item">
-                                <span class="ip-info-label">WebRTC STUN</span>
-                                <span class="ip-info-value" id="webrtcStun">-</span>
-                            </div>
-                            <div class="ip-info-item">
-                                <span class="ip-info-label">基于 IP 的时区</span>
-                                <span class="ip-info-value" id="ipTimezone">-</span>
-                            </div>
-                            <div class="ip-info-item">
-                                <span class="ip-info-label">本地时区</span>
-                                <span class="ip-info-value" id="localTimezone">-</span>
-                            </div>
-                            <div class="ip-info-item">
-                                <span class="ip-info-label">时区匹配</span>
-                                <span class="ip-info-value" id="timezoneMatch">-</span>
-                            </div>
-                            <div class="ip-info-item">
-                                <span class="ip-info-label">基于 IP 的时间</span>
-                                <span class="ip-info-value small" id="ipTime">-</span>
-                            </div>
-                            <div class="ip-info-item">
-                                <span class="ip-info-label">本地时间</span>
-                                <span class="ip-info-value small" id="localTime">-</span>
-                            </div>
-                            <div class="ip-info-item">
-                                <span class="ip-info-label">ISP</span>
-                                <span class="ip-info-value" id="ipIsp">-</span>
-                            </div>
-                        </div>
-                        <div class="ip-flags" id="ipFlags"></div>
-                    </article>
-
-                    <!-- Server Headers -->
-                    <article class="card">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <rect x="2" y="2" width="20" height="8" rx="2"/>
-                                    <rect x="2" y="14" width="20" height="8" rx="2"/>
-                                    <circle cx="6" cy="6" r="1"/>
-                                    <circle cx="6" cy="18" r="1"/>
-                                </svg>
-                            </div>
-                            <h4>Server Headers</h4>
-                        </div>
-                        <pre class="card-content" id="serverInfo">-</pre>
-                    </article>
-
-                    <!-- TLS -->
-                    <article class="card card-large">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <rect x="3" y="11" width="18" height="11" rx="2"/>
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                                </svg>
-                            </div>
-                            <h4>TLS Fingerprint</h4>
-                            <button id="getTlsBtn" class="btn btn-small">Fetch from Local Server</button>
-                        </div>
-                        <p class="card-note">First visit <a href="https://localhost:8443" target="_blank" style="color: var(--color-accent)">https://localhost:8443</a> and accept the certificate</p>
-                        <pre class="card-content" id="tlsInfo">-</pre>
-                    </article>
-                </div>
-            </div>
-
-            <!-- Browser Fingerprint Group -->
-            <div class="results-group">
-                <div class="group-header">
-                    <div class="group-line"></div>
-                    <span class="group-title">Browser Fingerprint</span>
-                    <div class="group-line"></div>
-                </div>
-                <div class="results-grid">
-                    <!-- Navigator -->
-                    <article class="card card-large">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <circle cx="12" cy="12" r="10"/>
-                                    <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                                </svg>
-                            </div>
-                            <h4>Navigator</h4>
-                            <span class="card-badge">Core</span>
-                        </div>
-                        <pre class="card-content" id="basicInfo">Click "Start Collection" to begin</pre>
-                    </article>
-
-                    <!-- Screen -->
-                    <article class="card">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <rect x="2" y="3" width="20" height="14" rx="2"/>
-                                    <path d="M8 21h8M12 17v4"/>
-                                </svg>
-                            </div>
-                            <h4>Screen</h4>
-                        </div>
-                        <pre class="card-content" id="screenInfo">-</pre>
-                    </article>
-
-                    <!-- Canvas -->
-                    <article class="card">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                                    <circle cx="8.5" cy="8.5" r="1.5"/>
-                                    <path d="M21 15l-5-5L5 21"/>
-                                </svg>
-                            </div>
-                            <h4>Canvas</h4>
-                            <span class="card-badge accent">Unique</span>
-                        </div>
-                        <div id="canvasPreview" class="canvas-preview"></div>
-                        <pre class="card-content" id="canvasInfo">-</pre>
-                    </article>
-
-                    <!-- Audio -->
-                    <article class="card">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M9 18V5l12-2v13"/>
-                                    <circle cx="6" cy="18" r="3"/>
-                                    <circle cx="18" cy="16" r="3"/>
-                                </svg>
-                            </div>
-                            <h4>Audio</h4>
-                        </div>
-                        <pre class="card-content" id="audioInfo">-</pre>
-                    </article>
-
-                    <!-- WebGL -->
-                    <article class="card card-large">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                                    <path d="M2 17l10 5 10-5"/>
-                                    <path d="M2 12l10 5 10-5"/>
-                                </svg>
-                            </div>
-                            <h4>WebGL</h4>
-                            <span class="card-badge accent">Unique</span>
-                        </div>
-                        <pre class="card-content" id="webglInfo">-</pre>
-                    </article>
-
-                    <!-- Fonts -->
-                    <article class="card">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M4 7V4h16v3"/>
-                                    <path d="M9 20h6"/>
-                                    <path d="M12 4v16"/>
-                                </svg>
-                            </div>
-                            <h4>Fonts</h4>
-                        </div>
-                        <div id="fontsInfo" class="fonts-grid">-</div>
-                    </article>
-                </div>
-            </div>
-
-            <!-- Security & Detection Group -->
-            <div class="results-group">
-                <div class="group-header">
-                    <div class="group-line"></div>
-                    <span class="group-title">Security & Detection</span>
-                    <div class="group-line"></div>
-                </div>
-                <div class="results-grid results-grid-2">
-                    <!-- Incognito Detection -->
-                    <article class="card">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M12 19c-4 0-7.333-2.333-10-7 2.667-4.667 6-7 10-7s7.333 2.333 10 7c-.42.736-.858 1.41-1.315 2.024"/>
-                                    <circle cx="12" cy="12" r="3"/>
-                                    <path d="M17 17l4 4m-2-2a3.5 3.5 0 1 0-5-5"/>
-                                </svg>
-                            </div>
-                            <h4>Incognito Mode</h4>
-                            <span class="card-badge" id="incognitoBadge">-</span>
-                        </div>
-                        <div class="incognito-result" id="incognitoResult">
-                            <div class="incognito-status">
-                                <span class="incognito-label">状态</span>
-                                <span class="incognito-value" id="incognitoStatus">-</span>
-                            </div>
-                            <div class="incognito-status">
-                                <span class="incognito-label">浏览器</span>
-                                <span class="incognito-value" id="incognitoBrowser">-</span>
-                            </div>
-                            <div class="incognito-status">
-                                <span class="incognito-label">置信度</span>
-                                <span class="incognito-value" id="incognitoConfidence">-</span>
-                            </div>
-                            <div class="incognito-status">
-                                <span class="incognito-label">Storage Quota</span>
-                                <span class="incognito-value" id="incognitoQuota">-</span>
-                            </div>
-                            <div class="incognito-status">
-                                <span class="incognito-label">Heap Limit</span>
-                                <span class="incognito-value" id="incognitoHeap">-</span>
-                            </div>
-                        </div>
-                    </article>
-
-                    <!-- Automation -->
-                    <article class="card">
-                        <div class="card-header">
-                            <div class="card-icon">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                                </svg>
-                            </div>
-                            <h4>Automation Detection</h4>
-                        </div>
-                        <pre class="card-content" id="automationInfo">-</pre>
-                    </article>
-                </div>
-            </div>
-        </section>
-
-        <!-- Full Data -->
-        <section class="full-data-section">
-            <details class="full-data-details">
-                <summary>
-                    <span>View Complete Raw Data</span>
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Action Bar -->
+            <div class="action-bar">
+                <button id="collectBtn" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6M1 20v-6h6"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
                     </svg>
-                </summary>
-                <div class="full-data-header">
-                    <button id="copyDataBtn" class="btn btn-small">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="9" y="9" width="13" height="13" rx="2"/>
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                        </svg>
+                    <span>Collect Fingerprint</span>
+                </button>
+                <span class="status" id="status">Ready</span>
+            </div>
+
+            <!-- Device ID Card -->
+            <section class="card card-featured" id="deviceCard" style="display:none;">
+                <div class="card-header">
+                    <h2>Device Identity</h2>
+                    <span class="badge" id="confidenceBadge">-</span>
+                </div>
+                <div class="device-id-grid">
+                    <div class="device-id-item">
+                        <label>Device ID (Core)</label>
+                        <div class="id-value">
+                            <code id="deviceCoreId">-</code>
+                            <button class="copy-btn" data-copy="deviceCoreId" title="Copy">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="device-id-item">
+                        <label>TLS ID</label>
+                        <div class="id-value">
+                            <code id="tlsId">-</code>
+                            <button class="copy-btn" data-copy="tlsId" title="Copy">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="device-id-item">
+                        <label>Collected At</label>
+                        <div class="id-value">
+                            <code id="collectedAt">-</code>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Browser Fingerprint -->
+            <section class="card" id="browserCard" style="display:none;">
+                <div class="card-header">
+                    <h2>Browser Fingerprint</h2>
+                    <button class="copy-btn" id="copyBrowserBtn" title="Copy JSON">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                         <span>Copy JSON</span>
                     </button>
                 </div>
-                <pre class="full-data-content" id="fullData">-</pre>
-            </details>
-        </section>
+                <div class="json-container">
+                    <pre id="browserJson">-</pre>
+                </div>
+            </section>
+
+            <!-- TLS Fingerprint -->
+            <section class="card" id="tlsCard" style="display:none;">
+                <div class="card-header">
+                    <h2>TLS Fingerprint</h2>
+                    <div class="header-actions">
+                        <button class="btn btn-small" id="fetchTlsBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                            <span>Fetch TLS</span>
+                        </button>
+                        <button class="copy-btn" id="copyTlsBtn" title="Copy JSON">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            <span>Copy JSON</span>
+                        </button>
+                    </div>
+                </div>
+                <p class="card-note">First visit <a href="#" id="tlsServerLink" target="_blank">TLS Server</a> and accept the certificate</p>
+                <div class="json-container">
+                    <pre id="tlsJson">-</pre>
+                </div>
+            </section>
+
+            <!-- Server Info -->
+            <section class="card" id="serverCard" style="display:none;">
+                <div class="card-header">
+                    <h2>Server Collected</h2>
+                    <button class="copy-btn" id="copyServerBtn" title="Copy JSON">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        <span>Copy JSON</span>
+                    </button>
+                </div>
+                <div class="json-container">
+                    <pre id="serverJson">-</pre>
+                </div>
+            </section>
+        </main>
 
         <!-- Footer -->
         <footer class="footer">
             <p>Fingerprint Collector &mdash; For educational and research purposes only</p>
         </footer>
     </div>
-
-    <!-- Toast -->
-    <div class="toast" id="tlsToast">
-        <div class="toast-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="11" width="18" height="11" rx="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-        </div>
-        <div class="toast-content">
-            <div class="toast-title">TLS Certificate Required</div>
-            <div class="toast-message">Please visit the TLS server first and accept the certificate to enable TLS fingerprint collection.</div>
-        </div>
-        <a href="#" target="_blank" class="toast-action" id="tlsToastLink">Open TLS Server</a>
-        <button class="toast-close" id="toastClose">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-        </button>
-    </div>
-
-    <style>
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            max-width: 420px;
-            padding: 16px;
-            background: var(--color-surface);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-lg);
-            z-index: 1000;
-            transform: translateY(120%);
-            opacity: 0;
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .toast.visible {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .toast-icon {
-            flex-shrink: 0;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--color-accent-bg);
-            color: var(--color-accent);
-            border-radius: var(--radius-md);
-        }
-
-        .toast-content {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .toast-title {
-            font-weight: 600;
-            font-size: 0.9375rem;
-            color: var(--color-text);
-            margin-bottom: 4px;
-        }
-
-        .toast-message {
-            font-size: 0.8125rem;
-            color: var(--color-text-secondary);
-            line-height: 1.5;
-        }
-
-        .toast-action {
-            flex-shrink: 0;
-            padding: 8px 16px;
-            font-size: 0.8125rem;
-            font-weight: 500;
-            color: var(--color-bg);
-            background: var(--color-accent);
-            border-radius: var(--radius-full);
-            text-decoration: none;
-            white-space: nowrap;
-            transition: all var(--transition-fast);
-        }
-
-        .toast-action:hover {
-            background: var(--color-text);
-        }
-
-        .toast-close {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: none;
-            border: none;
-            color: var(--color-text-muted);
-            cursor: pointer;
-            border-radius: var(--radius-sm);
-            transition: all var(--transition-fast);
-        }
-
-        .toast-close:hover {
-            background: var(--color-bg-subtle);
-            color: var(--color-text);
-        }
-
-        @media (max-width: 480px) {
-            .toast {
-                left: 16px;
-                right: 16px;
-                bottom: 16px;
-                max-width: none;
-                flex-wrap: wrap;
-            }
-
-            .toast-action {
-                width: 100%;
-                text-align: center;
-                margin-top: 8px;
-            }
-        }
-    </style>
 
     <script type="module" src="/static/js/app.js"></script>
 </body>

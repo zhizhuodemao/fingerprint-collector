@@ -13,3 +13,4 @@ export { detectIncognito, getBrowserName } from './incognito.js';
 export { detectAutomation } from './automation.js';
 export { collectFeatures, collectTiming, collectStorage, collectPlugins, collectMimeTypes } from './features.js';
 export { getWebRtcIps } from './webrtc.js';
+export { collectMath } from './math.js';
