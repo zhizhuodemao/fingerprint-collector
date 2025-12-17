@@ -1,0 +1,96 @@
+/* ============================================
+   Theme Toggle Component
+   ============================================ */
+
+.theme-toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    background: var(--color-bg-muted);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    display: flex;
+    align-items: center;
+    padding: 2px;
+}
+
+.theme-toggle:hover {
+    border-color: var(--color-text-muted);
+}
+
+.theme-toggle-thumb {
+    width: 18px;
+    height: 18px;
+    background: var(--color-surface);
+    border-radius: 50%;
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--transition-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.theme-toggle-thumb svg {
+    width: 12px;
+    height: 12px;
+    color: var(--color-accent);
+}
+
+/* Dark mode state */
+[data-theme="dark"] .theme-toggle {
+    background: var(--color-accent-bg);
+    border-color: var(--color-accent);
+}
+
+[data-theme="dark"] .theme-toggle-thumb {
+    transform: translateX(20px);
+    background: var(--color-accent);
+}
+
+[data-theme="dark"] .theme-toggle-thumb svg {
+    color: var(--color-bg);
+}
+
+/* Icons */
+.theme-toggle .sun-icon {
+    display: block;
+}
+
+.theme-toggle .moon-icon {
+    display: none;
+}
+
+[data-theme="dark"] .theme-toggle .sun-icon {
+    display: none;
+}
+
+[data-theme="dark"] .theme-toggle .moon-icon {
+    display: block;
+}
+
+/* Auto dark mode icons */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-toggle {
+        background: var(--color-accent-bg);
+        border-color: var(--color-accent);
+    }
+
+    :root:not([data-theme="light"]) .theme-toggle-thumb {
+        transform: translateX(20px);
+        background: var(--color-accent);
+    }
+
+    :root:not([data-theme="light"]) .theme-toggle-thumb svg {
+        color: var(--color-bg);
+    }
+
+    :root:not([data-theme="light"]) .theme-toggle .sun-icon {
+        display: none;
+    }
+
+    :root:not([data-theme="light"]) .theme-toggle .moon-icon {
+        display: block;
+    }
+}

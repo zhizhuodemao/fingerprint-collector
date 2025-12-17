@@ -1,0 +1,245 @@
+/* ============================================
+   Hero Section
+   ============================================ */
+
+.hero {
+    padding: var(--space-3xl) var(--space-lg);
+    background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-subtle) 100%);
+}
+
+.hero-content {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2xl);
+    align-items: center;
+}
+
+.hero-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin-bottom: var(--space-md);
+}
+
+.hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: var(--color-text);
+    margin-bottom: var(--space-lg);
+}
+
+.hero-title em {
+    font-style: italic;
+    color: var(--color-accent);
+}
+
+.hero-description {
+    font-size: 1.125rem;
+    color: var(--color-text-secondary);
+    max-width: 480px;
+    margin-bottom: var(--space-xl);
+}
+
+.hero-actions {
+    display: flex;
+    gap: var(--space-md);
+}
+
+/* Fingerprint Visual */
+.hero-visual {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+/* Background glow effect */
+.hero-visual::before {
+    content: '';
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, var(--color-accent-glow) 0%, transparent 70%);
+    animation: glow-pulse 4s ease-in-out infinite;
+    z-index: 0;
+}
+
+@keyframes glow-pulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.1); }
+}
+
+.fingerprint-rings {
+    position: relative;
+    width: 320px;
+    height: 320px;
+    z-index: 1;
+}
+
+.ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-border);
+    transform: translate(-50%, -50%);
+    transition: all var(--transition-slow);
+    background: transparent;
+}
+
+.ring-1 {
+    width: 100%;
+    height: 100%;
+    opacity: 0.4;
+    border-style: dashed;
+    animation: float-ring 6s ease-in-out infinite;
+}
+
+.ring-2 {
+    width: 75%;
+    height: 75%;
+    opacity: 0.5;
+    animation: float-ring 5s ease-in-out infinite 0.3s;
+}
+
+.ring-3 {
+    width: 50%;
+    height: 50%;
+    opacity: 0.6;
+    animation: float-ring 4s ease-in-out infinite 0.6s;
+}
+
+.ring-4 {
+    width: 25%;
+    height: 25%;
+    opacity: 0.8;
+    border-width: 2px;
+    animation: float-ring 3s ease-in-out infinite 0.9s;
+}
+
+.ring-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 72px;
+    height: 72px;
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    color: var(--color-text-muted);
+    box-shadow: var(--shadow-lg), 0 0 40px rgba(0, 0, 0, 0.04);
+    z-index: 2;
+    transition: all var(--transition-slow);
+}
+
+@keyframes float-ring {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+        opacity: var(--ring-opacity, 0.5);
+    }
+    25% {
+        transform: translate(-50%, -50%) scale(1.02) rotate(2deg);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+        opacity: calc(var(--ring-opacity, 0.5) + 0.2);
+    }
+    75% {
+        transform: translate(-50%, -50%) scale(0.98) rotate(-2deg);
+    }
+}
+
+/* Collecting state - spinning animation */
+.fingerprint-rings.collecting .ring {
+    border-color: var(--color-accent-light);
+    border-style: solid;
+}
+
+.fingerprint-rings.collecting .ring-1 {
+    animation: spin-ring 4s linear infinite;
+    border-style: dashed;
+}
+.fingerprint-rings.collecting .ring-2 {
+    animation: spin-ring 3s linear infinite reverse;
+}
+.fingerprint-rings.collecting .ring-3 {
+    animation: spin-ring 2.5s linear infinite;
+}
+.fingerprint-rings.collecting .ring-4 {
+    animation: spin-ring 2s linear infinite reverse;
+    border-color: var(--color-accent);
+}
+
+.fingerprint-rings.collecting .ring-center {
+    border-color: var(--color-accent-light);
+    box-shadow: var(--shadow-lg), 0 0 30px var(--color-accent-glow);
+}
+
+@keyframes spin-ring {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Success state */
+.fingerprint-rings.success .ring {
+    border-color: var(--color-success);
+    animation: success-pulse 0.6s ease-out forwards;
+}
+
+.fingerprint-rings.success .ring-center {
+    background: var(--color-success-bg);
+    border-color: var(--color-success);
+    color: var(--color-success);
+    animation: success-bounce 0.5s var(--transition-bounce) forwards;
+}
+
+@keyframes success-pulse {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.05); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes success-bounce {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.15); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hero-content {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+
+    .hero-description {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .hero-actions {
+        justify-content: center;
+    }
+
+    .hero-visual {
+        order: -1;
+    }
+
+    .fingerprint-rings {
+        width: 240px;
+        height: 240px;
+    }
+}

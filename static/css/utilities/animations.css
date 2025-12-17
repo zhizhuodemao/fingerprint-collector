@@ -1,0 +1,153 @@
+/* ============================================
+   Page Load Animations
+   ============================================ */
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Apply animations to page elements */
+.header {
+    animation: fadeIn 0.6s ease forwards;
+}
+
+.hero-text {
+    animation: slideInLeft 0.8s ease forwards;
+    animation-delay: 0.1s;
+    opacity: 0;
+}
+
+.hero-visual {
+    animation: slideInRight 0.8s ease forwards;
+    animation-delay: 0.2s;
+    opacity: 0;
+}
+
+.results-group {
+    animation: fadeInUp 0.6s ease forwards;
+    opacity: 0;
+}
+
+.results-group:nth-child(1) { animation-delay: 0.3s; }
+.results-group:nth-child(2) { animation-delay: 0.4s; }
+.results-group:nth-child(3) { animation-delay: 0.5s; }
+
+/* Card stagger animation */
+.card {
+    animation: fadeInUp 0.5s ease forwards;
+    opacity: 0;
+}
+
+.results-grid .card:nth-child(1) { animation-delay: 0.1s; }
+.results-grid .card:nth-child(2) { animation-delay: 0.15s; }
+.results-grid .card:nth-child(3) { animation-delay: 0.2s; }
+.results-grid .card:nth-child(4) { animation-delay: 0.25s; }
+.results-grid .card:nth-child(5) { animation-delay: 0.3s; }
+.results-grid .card:nth-child(6) { animation-delay: 0.35s; }
+
+/* ============================================
+   Page Header Animation (History/API pages)
+   ============================================ */
+.page-header {
+    animation: fadeIn 0.6s ease forwards;
+}
+
+.page-header-content {
+    animation: fadeInUp 0.7s ease forwards;
+    animation-delay: 0.1s;
+    opacity: 0;
+}
+
+/* ============================================
+   History Page Animations
+   ============================================ */
+.history-toolbar {
+    animation: fadeInUp 0.6s ease forwards;
+    animation-delay: 0.2s;
+    opacity: 0;
+}
+
+.history-item {
+    animation: fadeInUp 0.5s ease forwards;
+    opacity: 0;
+}
+
+.history-item:nth-child(1) { animation-delay: 0.25s; }
+.history-item:nth-child(2) { animation-delay: 0.3s; }
+.history-item:nth-child(3) { animation-delay: 0.35s; }
+.history-item:nth-child(4) { animation-delay: 0.4s; }
+.history-item:nth-child(5) { animation-delay: 0.45s; }
+.history-item:nth-child(6) { animation-delay: 0.5s; }
+.history-item:nth-child(7) { animation-delay: 0.55s; }
+.history-item:nth-child(8) { animation-delay: 0.6s; }
+.history-item:nth-child(9) { animation-delay: 0.65s; }
+.history-item:nth-child(10) { animation-delay: 0.7s; }
+
+.empty-state {
+    animation: fadeInUp 0.6s ease forwards;
+    animation-delay: 0.3s;
+    opacity: 0;
+}
+
+/* ============================================
+   API Page Animations
+   ============================================ */
+.api-endpoint {
+    animation: fadeInUp 0.5s ease forwards;
+    opacity: 0;
+}
+
+.api-endpoint:nth-child(1) { animation-delay: 0.2s; }
+.api-endpoint:nth-child(2) { animation-delay: 0.25s; }
+.api-endpoint:nth-child(3) { animation-delay: 0.3s; }
+.api-endpoint:nth-child(4) { animation-delay: 0.35s; }
+.api-endpoint:nth-child(5) { animation-delay: 0.4s; }
+.api-endpoint:nth-child(6) { animation-delay: 0.45s; }
+.api-endpoint:nth-child(7) { animation-delay: 0.5s; }
+.api-endpoint:nth-child(8) { animation-delay: 0.55s; }
+
+.base-url {
+    animation: slideInLeft 0.6s ease forwards;
+    animation-delay: 0.15s;
+    opacity: 0;
+}
+
+.tls-section {
+    animation: fadeInUp 0.6s ease forwards;
+    animation-delay: 0.6s;
+    opacity: 0;
+}

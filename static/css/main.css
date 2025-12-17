@@ -1,0 +1,25 @@
+/* ============================================
+   Fingerprint Collector - Main CSS Entry
+   ES Modules + CSS @import Architecture
+   ============================================ */
+
+/* Base - Variables, Reset, Typography */
+@import url('./base/variables.css');
+@import url('./base/reset.css');
+@import url('./base/typography.css');
+
+/* Layout - Page Structure */
+@import url('./layout/header.css');
+@import url('./layout/hero.css');
+@import url('./layout/results.css');
+@import url('./layout/footer.css');
+
+/* Components - Reusable UI Elements */
+@import url('./components/buttons.css');
+@import url('./components/cards.css');
+@import url('./components/status.css');
+@import url('./components/toast.css');
+@import url('./components/theme-toggle.css');
+
+/* Utilities - Animations and Helpers */
+@import url('./utilities/animations.css');
