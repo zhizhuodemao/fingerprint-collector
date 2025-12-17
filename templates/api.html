@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation - Fingerprint Collector</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .page-header {
+            padding: var(--space-2xl) var(--space-lg);
+            background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-subtle) 100%);
+        }
+
+        .page-header-content {
+            max-width: var(--max-width);
+            margin: 0 auto;
+        }
+
+        .page-title {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 400;
+            color: var(--color-text);
+            margin-bottom: var(--space-sm);
+        }
+
+        .page-description {
+            font-size: 1.125rem;
+            color: var(--color-text-secondary);
+        }
+
+        .api-section {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: var(--space-xl) var(--space-lg);
+        }
+
+        .api-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-lg);
+        }
+
+        .api-endpoint {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .api-endpoint-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-lg);
+            border-bottom: 1px solid var(--color-border-subtle);
+        }
+
+        .api-method {
+            padding: var(--space-xs) var(--space-md);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono);
+        }
+
+        .api-method.get {
+            background: #E8F5EE;
+            color: #2D8B5F;
+        }
+
+        .api-method.post {
+            background: #E8F0FD;
+            color: #2D5F8B;
+        }
+
+        .api-path {
+            font-family: var(--font-mono);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: var(--color-text);
+        }
+
+        .api-endpoint-body {
+            padding: var(--space-lg);
+        }
+
+        .api-description {
+            font-size: 0.9375rem;
+            color: var(--color-text-secondary);
+            margin-bottom: var(--space-lg);
+        }
+
+        .api-subsection {
+            margin-bottom: var(--space-lg);
+        }
+
+        .api-subsection:last-child {
+            margin-bottom: 0;
+        }
+
+        .api-subsection-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-muted);
+            margin-bottom: var(--space-sm);
+        }
+
+        .api-code {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            line-height: 1.7;
+            background: var(--color-bg-subtle);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .api-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .api-table th,
+        .api-table td {
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--color-border-subtle);
+            font-size: 0.875rem;
+        }
+
+        .api-table th {
+            font-weight: 600;
+            color: var(--color-text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .api-table td {
+            color: var(--color-text-secondary);
+        }
+
+        .api-table code {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            background: var(--color-bg-muted);
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+        }
+
+        .try-it-btn {
+            margin-top: var(--space-md);
+        }
+
+        .api-response {
+            margin-top: var(--space-md);
+            display: none;
+        }
+
+        .api-response.visible {
+            display: block;
+        }
+
+        .base-url {
+            display: inline-block;
+            padding: var(--space-md) var(--space-lg);
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            font-family: var(--font-mono);
+            font-size: 0.9375rem;
+            color: var(--color-accent);
+            margin-bottom: var(--space-xl);
+        }
+
+        .tls-section {
+            margin-top: var(--space-xl);
+            padding: var(--space-lg);
+            background: var(--color-accent-bg);
+            border: 1px solid var(--color-accent-light);
+            border-radius: var(--radius-lg);
+        }
+
+        .tls-section h3 {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            color: var(--color-accent);
+            margin-bottom: var(--space-md);
+        }
+
+        .tls-section p {
+            font-size: 0.9375rem;
+            color: var(--color-text-secondary);
+            margin-bottom: var(--space-md);
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
+                            <circle cx="24" cy="24" r="14" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+                            <circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="1.5" opacity="0.7"/>
+                            <circle cx="24" cy="24" r="3" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <h1>Fingerprint</h1>
+                        <span class="logo-subtitle">Browser Identity Collector</span>
+                    </div>
+                </div>
+                <nav class="nav">
+                    <a href="/" class="nav-link">Collect</a>
+                    <a href="/history" class="nav-link">History</a>
+                    <a href="/api-docs" class="nav-link active">API</a>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Page Header -->
+        <section class="page-header">
+            <div class="page-header-content">
+                <h2 class="page-title">API Documentation</h2>
+                <p class="page-description">REST API for collecting and retrieving browser fingerprints</p>
+            </div>
+        </section>
+
+        <!-- API Section -->
+        <section class="api-section">
+            <div class="base-url" id="baseUrl">Base URL: Loading...</div>
+
+            <div class="api-list">
+                <!-- POST /api/collect -->
+                <article class="api-endpoint">
+                    <div class="api-endpoint-header">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/api/collect</span>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <p class="api-description">Submit browser fingerprint data collected from the client. Server will append HTTP headers and IP information.</p>
+
+                        <div class="api-subsection">
+                            <h4 class="api-subsection-title">Request Body</h4>
+                            <pre class="api-code">{
+  "navigator": { ... },
+  "screen": { ... },
+  "canvas": { "hash": "...", "dataURL": "..." },
+  "webgl": { ... },
+  "audio": { ... },
+  "fonts": { "detected": [...], "count": 50 }
+}</pre>
+                        </div>
+
+                        <div class="api-subsection">
+                            <h4 class="api-subsection-title">Response</h4>
+                            <pre class="api-code">{
+  "success": true,
+  "id": "abc123def456",
+  "fingerprint": {
+    "client": { ... },
+    "server": {
+      "ip": "192.168.1.1",
+      "user_agent": "...",
+      "headers": { ... }
+    }
+  }
+}</pre>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- GET /api/fingerprints -->
+                <article class="api-endpoint">
+                    <div class="api-endpoint-header">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api/fingerprints</span>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <p class="api-description">Retrieve all collected fingerprints (limited to most recent 100).</p>
+
+                        <div class="api-subsection">
+                            <h4 class="api-subsection-title">Response</h4>
+                            <pre class="api-code">{
+  "success": true,
+  "count": 10,
+  "fingerprints": [ ... ]
+}</pre>
+                        </div>
+
+                        <button class="btn btn-small try-it-btn" data-endpoint="/api/fingerprints">Try it</button>
+                        <div class="api-response" id="response-fingerprints">
+                            <h4 class="api-subsection-title">Response</h4>
+                            <pre class="api-code" id="response-fingerprints-content"></pre>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- GET /api/fingerprint/:id -->
+                <article class="api-endpoint">
+                    <div class="api-endpoint-header">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api/fingerprint/:id</span>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <p class="api-description">Retrieve a specific fingerprint by its ID.</p>
+
+                        <div class="api-subsection">
+                            <h4 class="api-subsection-title">Parameters</h4>
+                            <table class="api-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>id</code></td>
+                                        <td>string</td>
+                                        <td>Fingerprint ID</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="api-subsection">
+                            <h4 class="api-subsection-title">Response</h4>
+                            <pre class="api-code">{
+  "success": true,
+  "fingerprint": { ... }
+}</pre>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- GET /api/fingerprint/:id/delete -->
+                <article class="api-endpoint">
+                    <div class="api-endpoint-header">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api/fingerprint/:id/delete</span>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <p class="api-description">Delete a specific fingerprint by its ID.</p>
+
+                        <div class="api-subsection">
+                            <h4 class="api-subsection-title">Parameters</h4>
+                            <table class="api-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>id</code></td>
+                                        <td>string</td>
+                                        <td>Fingerprint ID to delete</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="api-subsection">
+                            <h4 class="api-subsection-title">Response</h4>
+                            <pre class="api-code">{
+  "success": true,
+  "message": "Fingerprint abc123 deleted"
+}</pre>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- GET /api/fingerprints/delete -->
+                <article class="api-endpoint">
+                    <div class="api-endpoint-header">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api/fingerprints/delete</span>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <p class="api-description">Delete all fingerprints from the database.</p>
+
+                        <div class="api-subsection">
+                            <h4 class="api-subsection-title">Response</h4>
+                            <pre class="api-code">{
+  "success": true,
+  "message": "Deleted 10 fingerprint(s)"
+}</pre>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- GET /api/server-info -->
+                <article class="api-endpoint">
+                    <div class="api-endpoint-header">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api/server-info</span>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <p class="api-description">Get server-side collected information only (IP, headers, etc.).</p>
+
+                        <button class="btn btn-small try-it-btn" data-endpoint="/api/server-info">Try it</button>
+                        <div class="api-response" id="response-server-info">
+                            <h4 class="api-subsection-title">Response</h4>
+                            <pre class="api-code" id="response-server-info-content"></pre>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- GET /api/config -->
+                <article class="api-endpoint">
+                    <div class="api-endpoint-header">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api/config</span>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <p class="api-description">Get server configuration (TLS server URL, etc.).</p>
+
+                        <button class="btn btn-small try-it-btn" data-endpoint="/api/config">Try it</button>
+                        <div class="api-response" id="response-config">
+                            <h4 class="api-subsection-title">Response</h4>
+                            <pre class="api-code" id="response-config-content"></pre>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- GET /api/tls-check -->
+                <article class="api-endpoint">
+                    <div class="api-endpoint-header">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api/tls-check</span>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <p class="api-description">Check TLS fingerprint server status.</p>
+
+                        <button class="btn btn-small try-it-btn" data-endpoint="/api/tls-check">Try it</button>
+                        <div class="api-response" id="response-tls-check">
+                            <h4 class="api-subsection-title">Response</h4>
+                            <pre class="api-code" id="response-tls-check-content"></pre>
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <!-- TLS Section -->
+            <div class="tls-section">
+                <h3>TLS Fingerprint (JA3/JA4)</h3>
+                <p>TLS fingerprints cannot be collected by standard HTTP APIs. The browser must establish a direct TLS connection to our Go-based TLS server.</p>
+
+                <div class="api-subsection">
+                    <h4 class="api-subsection-title">TLS Server Endpoint</h4>
+                    <pre class="api-code" id="tlsServerUrl">Loading...</pre>
+                </div>
+
+                <div class="api-subsection">
+                    <h4 class="api-subsection-title">Usage Steps</h4>
+                    <ol style="padding-left: var(--space-lg); color: var(--color-text-secondary);">
+                        <li>Visit the TLS server URL in your browser</li>
+                        <li>Accept the self-signed certificate warning</li>
+                        <li>The server captures your TLS ClientHello</li>
+                        <li>Access <code>/api/fingerprint</code> on the TLS server to retrieve your JA3/JA4 fingerprint</li>
+                    </ol>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Fingerprint Collector &mdash; For educational and research purposes only</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Load config
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+
+                document.getElementById('baseUrl').textContent = `Base URL: ${window.location.origin}`;
+                document.getElementById('tlsServerUrl').textContent = config.tls_url + '/api/fingerprint';
+            } catch (e) {
+                document.getElementById('baseUrl').textContent = `Base URL: ${window.location.origin}`;
+            }
+
+            // Try it buttons
+            document.querySelectorAll('.try-it-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const endpoint = btn.dataset.endpoint;
+                    const responseId = 'response-' + endpoint.replace('/api/', '').replace('/', '-');
+                    const responseEl = document.getElementById(responseId);
+                    const contentEl = document.getElementById(responseId + '-content');
+
+                    try {
+                        btn.textContent = 'Loading...';
+                        const response = await fetch(endpoint);
+                        const data = await response.json();
+                        contentEl.textContent = JSON.stringify(data, null, 2);
+                        responseEl.classList.add('visible');
+                    } catch (error) {
+                        contentEl.textContent = 'Error: ' + error.message;
+                        responseEl.classList.add('visible');
+                    } finally {
+                        btn.textContent = 'Try it';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

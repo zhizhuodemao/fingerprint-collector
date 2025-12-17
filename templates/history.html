@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History - Fingerprint Collector</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .page-header {
+            padding: var(--space-2xl) var(--space-lg);
+            background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-subtle) 100%);
+        }
+
+        .page-header-content {
+            max-width: var(--max-width);
+            margin: 0 auto;
+        }
+
+        .page-title {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 400;
+            color: var(--color-text);
+            margin-bottom: var(--space-sm);
+        }
+
+        .page-description {
+            font-size: 1.125rem;
+            color: var(--color-text-secondary);
+        }
+
+        .history-section {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: var(--space-xl) var(--space-lg);
+        }
+
+        .history-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-lg);
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+
+        .history-count {
+            font-size: 0.875rem;
+            color: var(--color-text-muted);
+        }
+
+        .toolbar-actions {
+            display: flex;
+            gap: var(--space-sm);
+            flex-wrap: wrap;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .history-item {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            transition: all var(--transition-base);
+        }
+
+        .history-item:hover {
+            border-color: var(--color-text-muted);
+            box-shadow: var(--shadow-md);
+        }
+
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--space-md);
+        }
+
+        .history-item-id {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--color-accent);
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .history-item-id:hover {
+            text-decoration: underline;
+        }
+
+        .history-item-time {
+            font-size: 0.8125rem;
+            color: var(--color-text-muted);
+        }
+
+        .history-item-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-md);
+            cursor: pointer;
+        }
+
+        .history-detail {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+        }
+
+        .history-detail-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            color: var(--color-text-muted);
+        }
+
+        .history-detail-value {
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
+            word-break: break-all;
+        }
+
+        .history-item-actions {
+            display: flex;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--color-border-subtle);
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            background: var(--color-bg-subtle);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .action-btn:hover {
+            background: var(--color-bg-muted);
+            color: var(--color-text);
+        }
+
+        .action-btn.danger:hover {
+            background: #FDE8E8;
+            color: #D64545;
+            border-color: #F5C6C6;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: var(--space-3xl);
+            color: var(--color-text-muted);
+        }
+
+        .empty-state-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto var(--space-lg);
+            opacity: 0.5;
+        }
+
+        .empty-state-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            color: var(--color-text-secondary);
+            margin-bottom: var(--space-sm);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all var(--transition-base);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow: hidden;
+            transform: scale(0.95);
+            transition: transform var(--transition-base);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-lg);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .modal-title {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: var(--space-sm);
+            align-items: center;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--color-text-muted);
+            border-radius: var(--radius-sm);
+            transition: all var(--transition-fast);
+        }
+
+        .modal-close:hover {
+            background: var(--color-bg-subtle);
+            color: var(--color-text);
+        }
+
+        .modal-body {
+            padding: var(--space-lg);
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .modal-body pre {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            line-height: 1.8;
+            background: var(--color-bg-subtle);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 12px 24px;
+            background: var(--color-text);
+            color: var(--color-bg);
+            border-radius: var(--radius-full);
+            font-size: 0.875rem;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 2000;
+        }
+
+        .toast.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: var(--color-success);
+        }
+
+        .toast.error {
+            background: #D64545;
+        }
+
+        /* Confirm Dialog */
+        .confirm-dialog {
+            text-align: center;
+            padding: var(--space-lg);
+        }
+
+        .confirm-dialog h3 {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            margin-bottom: var(--space-sm);
+        }
+
+        .confirm-dialog p {
+            color: var(--color-text-secondary);
+            margin-bottom: var(--space-lg);
+        }
+
+        .confirm-dialog-actions {
+            display: flex;
+            gap: var(--space-md);
+            justify-content: center;
+        }
+
+        .btn-danger {
+            background: #D64545;
+            color: white;
+            border: none;
+        }
+
+        .btn-danger:hover {
+            background: #B83C3C;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="1.5" opacity="0.3"/>
+                            <circle cx="24" cy="24" r="14" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+                            <circle cx="24" cy="24" r="8" stroke="currentColor" stroke-width="1.5" opacity="0.7"/>
+                            <circle cx="24" cy="24" r="3" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <h1>Fingerprint</h1>
+                        <span class="logo-subtitle">Browser Identity Collector</span>
+                    </div>
+                </div>
+                <nav class="nav">
+                    <a href="/" class="nav-link">Collect</a>
+                    <a href="/history" class="nav-link active">History</a>
+                    <a href="/api-docs" class="nav-link">API</a>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Page Header -->
+        <section class="page-header">
+            <div class="page-header-content">
+                <h2 class="page-title">Collection History</h2>
+                <p class="page-description">View and manage previously collected fingerprints</p>
+            </div>
+        </section>
+
+        <!-- History Section -->
+        <section class="history-section">
+            <div class="history-toolbar">
+                <span class="history-count" id="historyCount">Loading...</span>
+                <div class="toolbar-actions">
+                    <button class="btn btn-secondary" id="refreshBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6M1 20v-6h6"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        Refresh
+                    </button>
+                    <button class="btn btn-secondary" id="exportAllBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Export All
+                    </button>
+                    <button class="btn btn-secondary" id="clearAllBtn" style="color: #D64545;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Clear All
+                    </button>
+                </div>
+            </div>
+
+            <div class="history-list" id="historyList">
+                <!-- Dynamic content -->
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Fingerprint Collector &mdash; For educational and research purposes only</p>
+        </footer>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Fingerprint Details</h3>
+                <div class="modal-actions">
+                    <button class="action-btn" id="modalCopyBtn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                        Copy
+                    </button>
+                    <button class="action-btn" id="modalExportBtn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Export
+                    </button>
+                    <button class="modal-close" id="modalClose">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <pre id="modalContent"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal-overlay" id="confirmOverlay">
+        <div class="modal" style="max-width: 400px;">
+            <div class="confirm-dialog">
+                <h3 id="confirmTitle">Confirm Delete</h3>
+                <p id="confirmMessage">Are you sure you want to delete all fingerprints?</p>
+                <div class="confirm-dialog-actions">
+                    <button class="btn btn-secondary" id="confirmCancel">Cancel</button>
+                    <button class="btn btn-danger" id="confirmOk">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        class HistoryManager {
+            constructor() {
+                this.fingerprints = [];
+                this.currentFp = null;
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.loadHistory();
+            }
+
+            bindEvents() {
+                document.getElementById('refreshBtn').addEventListener('click', () => this.loadHistory());
+                document.getElementById('exportAllBtn').addEventListener('click', () => this.exportAll());
+                document.getElementById('clearAllBtn').addEventListener('click', () => this.confirmClearAll());
+
+                // Modal events
+                document.getElementById('modalOverlay').addEventListener('click', (e) => {
+                    if (e.target.id === 'modalOverlay') this.closeModal();
+                });
+                document.getElementById('modalClose').addEventListener('click', () => this.closeModal());
+                document.getElementById('modalCopyBtn').addEventListener('click', () => this.copyCurrentFp());
+                document.getElementById('modalExportBtn').addEventListener('click', () => this.exportCurrentFp());
+
+                // Confirm modal events
+                document.getElementById('confirmOverlay').addEventListener('click', (e) => {
+                    if (e.target.id === 'confirmOverlay') this.closeConfirm();
+                });
+                document.getElementById('confirmCancel').addEventListener('click', () => this.closeConfirm());
+            }
+
+            showToast(message, type = '') {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.className = 'toast visible ' + type;
+                setTimeout(() => {
+                    toast.classList.remove('visible');
+                }, 2000);
+            }
+
+            async loadHistory() {
+                try {
+                    const response = await fetch('/api/fingerprints');
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.fingerprints = data.fingerprints || [];
+                        this.renderHistory();
+                    }
+                } catch (error) {
+                    console.error('Failed to load history:', error);
+                    this.renderError();
+                }
+            }
+
+            renderHistory() {
+                const container = document.getElementById('historyList');
+                const countEl = document.getElementById('historyCount');
+
+                countEl.textContent = `${this.fingerprints.length} fingerprint(s) collected`;
+
+                if (this.fingerprints.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">
+                                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <circle cx="24" cy="24" r="20"/>
+                                    <path d="M24 14v10M24 30v2"/>
+                                </svg>
+                            </div>
+                            <h3 class="empty-state-title">No fingerprints yet</h3>
+                            <p>Go to the <a href="/" style="color: var(--color-accent)">Collect</a> page to capture your first fingerprint.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = this.fingerprints.map((fp, index) => this.renderItem(fp, index)).join('');
+                this.bindItemEvents();
+            }
+
+            renderItem(fp, index) {
+                const client = fp.client || {};
+                const server = fp.server || {};
+                const time = server.collected_at ? new Date(server.collected_at).toLocaleString('zh-CN') : 'Unknown';
+                const id = fp.id || 'Unknown';
+
+                return `
+                    <div class="history-item" data-index="${index}">
+                        <div class="history-item-header">
+                            <span class="history-item-id" data-id="${id}" title="Click to copy">#${id}</span>
+                            <span class="history-item-time">${time}</span>
+                        </div>
+                        <div class="history-item-details" data-index="${index}">
+                            <div class="history-detail">
+                                <span class="history-detail-label">IP Address</span>
+                                <span class="history-detail-value">${server.ip || '-'}</span>
+                            </div>
+                            <div class="history-detail">
+                                <span class="history-detail-label">User Agent</span>
+                                <span class="history-detail-value">${(server.user_agent || '-').substring(0, 60)}...</span>
+                            </div>
+                            <div class="history-detail">
+                                <span class="history-detail-label">Canvas Hash</span>
+                                <span class="history-detail-value">${client.canvas?.hash?.substring(0, 16) || '-'}...</span>
+                            </div>
+                            <div class="history-detail">
+                                <span class="history-detail-label">WebGL Renderer</span>
+                                <span class="history-detail-value">${client.webgl?.unmaskedRenderer?.substring(0, 30) || '-'}...</span>
+                            </div>
+                        </div>
+                        <div class="history-item-actions">
+                            <button class="action-btn copy-btn" data-index="${index}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                                Copy
+                            </button>
+                            <button class="action-btn export-btn" data-index="${index}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Export
+                            </button>
+                            <button class="action-btn view-btn" data-index="${index}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                View
+                            </button>
+                            <button class="action-btn danger delete-btn" data-id="${id}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            bindItemEvents() {
+                // Copy ID on click
+                document.querySelectorAll('.history-item-id').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(el.dataset.id);
+                        this.showToast('ID copied!', 'success');
+                    });
+                });
+
+                // View details
+                document.querySelectorAll('.history-item-details, .view-btn').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const index = el.dataset.index;
+                        this.showDetail(this.fingerprints[index]);
+                    });
+                });
+
+                // Copy
+                document.querySelectorAll('.copy-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const index = btn.dataset.index;
+                        this.copyFp(this.fingerprints[index]);
+                    });
+                });
+
+                // Export
+                document.querySelectorAll('.export-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const index = btn.dataset.index;
+                        this.exportFp(this.fingerprints[index]);
+                    });
+                });
+
+                // Delete
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const id = btn.dataset.id;
+                        this.confirmDelete(id);
+                    });
+                });
+            }
+
+            copyFp(fp) {
+                navigator.clipboard.writeText(JSON.stringify(fp, null, 2));
+                this.showToast('Fingerprint copied!', 'success');
+            }
+
+            exportFp(fp) {
+                const dataStr = JSON.stringify(fp, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `fingerprint-${fp.id || 'unknown'}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                this.showToast('Exported!', 'success');
+            }
+
+            exportAll() {
+                if (this.fingerprints.length === 0) {
+                    this.showToast('No fingerprints to export', 'error');
+                    return;
+                }
+                const dataStr = JSON.stringify(this.fingerprints, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `fingerprints-${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                this.showToast(`Exported ${this.fingerprints.length} fingerprint(s)!`, 'success');
+            }
+
+            confirmDelete(id) {
+                document.getElementById('confirmTitle').textContent = 'Delete Fingerprint';
+                document.getElementById('confirmMessage').textContent = `Are you sure you want to delete fingerprint #${id}?`;
+                document.getElementById('confirmOk').onclick = () => this.deleteFp(id);
+                document.getElementById('confirmOverlay').classList.add('active');
+            }
+
+            confirmClearAll() {
+                if (this.fingerprints.length === 0) {
+                    this.showToast('No fingerprints to delete', 'error');
+                    return;
+                }
+                document.getElementById('confirmTitle').textContent = 'Clear All Fingerprints';
+                document.getElementById('confirmMessage').textContent = `Are you sure you want to delete all ${this.fingerprints.length} fingerprint(s)? This action cannot be undone.`;
+                document.getElementById('confirmOk').onclick = () => this.clearAll();
+                document.getElementById('confirmOverlay').classList.add('active');
+            }
+
+            async deleteFp(id) {
+                this.closeConfirm();
+                try {
+                    const response = await fetch(`/api/fingerprint/${id}/delete`);
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast('Deleted!', 'success');
+                        this.loadHistory();
+                    } else {
+                        this.showToast(data.error || 'Delete failed', 'error');
+                    }
+                } catch (error) {
+                    this.showToast('Delete failed', 'error');
+                }
+            }
+
+            async clearAll() {
+                this.closeConfirm();
+                try {
+                    const response = await fetch('/api/fingerprints/delete');
+                    const data = await response.json();
+                    if (data.success) {
+                        this.showToast(data.message, 'success');
+                        this.loadHistory();
+                    } else {
+                        this.showToast(data.error || 'Clear failed', 'error');
+                    }
+                } catch (error) {
+                    this.showToast('Clear failed', 'error');
+                }
+            }
+
+            closeConfirm() {
+                document.getElementById('confirmOverlay').classList.remove('active');
+            }
+
+            renderError() {
+                const container = document.getElementById('historyList');
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3 class="empty-state-title">Failed to load history</h3>
+                        <p>Please try again later.</p>
+                    </div>
+                `;
+            }
+
+            showDetail(fp) {
+                this.currentFp = fp;
+                document.getElementById('modalTitle').textContent = `Fingerprint #${fp.id || 'Unknown'}`;
+                document.getElementById('modalContent').textContent = JSON.stringify(fp, null, 2);
+                document.getElementById('modalOverlay').classList.add('active');
+            }
+
+            closeModal() {
+                document.getElementById('modalOverlay').classList.remove('active');
+                this.currentFp = null;
+            }
+
+            copyCurrentFp() {
+                if (this.currentFp) {
+                    this.copyFp(this.currentFp);
+                }
+            }
+
+            exportCurrentFp() {
+                if (this.currentFp) {
+                    this.exportFp(this.currentFp);
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new HistoryManager();
+        });
+    </script>
+</body>
+</html>
