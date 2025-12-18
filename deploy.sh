@@ -228,6 +228,11 @@ compile_tls_server() {
         fi
     fi
 
+    # 设置 Go 代理 (中国境内加速)
+    export GOPROXY="https://goproxy.cn,https://goproxy.io,direct"
+    export GOSUMDB="sum.golang.google.cn"
+    log_info "使用 Go 代理: $GOPROXY"
+
     # 编译
     log_info "正在编译 (需要几分钟)..."
     go mod tidy
