@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/http2/hpack"
 )
 
 // TLS Extension names
@@ -355,17 +357,17 @@ func handleHTTP2(conn net.Conn, remoteAddr string, combined *CombinedFingerprint
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
 	// If we already have HEADERS in the initial data, process it
-	// Otherwise, read more
+	// Otherwise, read more - client sends SETTINGS_ACK + HEADERS after receiving our SETTINGS
 	headerData := frameData
 	if !containsHeadersFrame(frameData) {
 		n2, err := conn.Read(buf)
 		if err == nil && n2 > 0 {
-			headerData = append(headerData, buf[:n2]...)
+			headerData = buf[:n2]
 		}
 	}
 
 	// Find and respond to HEADERS frame
-	respondToHTTP2Request(conn, headerData, combined)
+	respondToHTTP2Request(conn, headerData, combined, remoteAddr)
 }
 
 // buildServerSettingsFrame creates a SETTINGS frame for server
@@ -429,17 +431,43 @@ func containsHeadersFrame(data []byte) bool {
 }
 
 // respondToHTTP2Request sends an HTTP/2 response
-func respondToHTTP2Request(conn net.Conn, data []byte, combined *CombinedFingerprint) {
-	// Find the stream ID from HEADERS frame
+func respondToHTTP2Request(conn net.Conn, data []byte, combined *CombinedFingerprint, remoteAddr string) {
+	// Find the stream ID and path from HEADERS frame
 	streamID := uint32(1) // Default to stream 1
+	path := "/"
+	userAgent := ""
 
 	pos := 0
 	for pos+9 <= len(data) {
 		frameLen := int(data[pos])<<16 | int(data[pos+1])<<8 | int(data[pos+2])
 		frameType := data[pos+3]
+		frameFlags := data[pos+4]
 
 		if frameType == FrameHeaders {
 			streamID = binary.BigEndian.Uint32(data[pos+5:pos+9]) & 0x7FFFFFFF
+			// Try to extract path from HPACK encoded headers
+			if pos+9+frameLen <= len(data) {
+				headerPayload := data[pos+9 : pos+9+frameLen]
+
+				// Handle PADDED flag (0x08)
+				padLen := 0
+				payloadOffset := 0
+				if frameFlags&0x08 != 0 && len(headerPayload) > 0 {
+					padLen = int(headerPayload[0])
+					payloadOffset = 1
+				}
+
+				// Handle PRIORITY flag (0x20)
+				if frameFlags&0x20 != 0 {
+					payloadOffset += 5 // Skip stream dependency (4 bytes) + weight (1 byte)
+				}
+
+				// Extract actual HPACK data
+				if payloadOffset < len(headerPayload)-padLen {
+					hpackData := headerPayload[payloadOffset : len(headerPayload)-padLen]
+					path, userAgent = extractHTTP2Path(hpackData)
+				}
+			}
 			break
 		}
 
@@ -449,12 +477,27 @@ func respondToHTTP2Request(conn net.Conn, data []byte, combined *CombinedFingerp
 		}
 	}
 
-	// Build JSON response
-	response := map[string]interface{}{
-		"success":     true,
-		"fingerprint": combined,
+	// Route based on path
+	var jsonBody []byte
+
+	if strings.Contains(path, "/api/analysis") {
+		// Return analysis
+		host, _, _ := net.SplitHostPort(remoteAddr)
+		analysis := AnalyzeFingerprint(combined, host, userAgent)
+		response := map[string]interface{}{
+			"success":   true,
+			"client_ip": host,
+			"analysis":  analysis,
+		}
+		jsonBody, _ = json.MarshalIndent(response, "", "  ")
+	} else {
+		// Default: return fingerprint
+		response := map[string]interface{}{
+			"success":     true,
+			"fingerprint": combined,
+		}
+		jsonBody, _ = json.MarshalIndent(response, "", "  ")
 	}
-	jsonBody, _ := json.MarshalIndent(response, "", "  ")
 
 	// Send HEADERS frame with :status 200
 	headersFrame := buildHTTP2HeadersFrame(streamID, len(jsonBody))
@@ -463,6 +506,30 @@ func respondToHTTP2Request(conn net.Conn, data []byte, combined *CombinedFingerp
 	// Send DATA frame with response body
 	dataFrame := buildHTTP2DataFrame(streamID, jsonBody)
 	conn.Write(dataFrame)
+}
+
+// extractHTTP2Path uses proper HPACK decoding to extract the :path header
+func extractHTTP2Path(headerPayload []byte) (string, string) {
+	path := "/"
+	userAgent := ""
+
+	// Use proper HPACK decoder
+	decoder := hpack.NewDecoder(4096, nil)
+	headers, err := decoder.DecodeFull(headerPayload)
+	if err != nil {
+		return path, userAgent
+	}
+
+	for _, hf := range headers {
+		switch hf.Name {
+		case ":path":
+			path = hf.Value
+		case "user-agent":
+			userAgent = hf.Value
+		}
+	}
+
+	return path, userAgent
 }
 
 // buildHTTP2HeadersFrame builds a HEADERS frame with status 200
@@ -921,6 +988,15 @@ func handleHTTP(conn net.Conn, remoteAddr string) {
 
 	path := parts[1]
 
+	// Extract User-Agent header
+	userAgent := ""
+	for _, line := range lines {
+		if strings.HasPrefix(strings.ToLower(line), "user-agent:") {
+			userAgent = strings.TrimSpace(line[11:])
+			break
+		}
+	}
+
 	var response string
 	var body []byte
 
@@ -936,20 +1012,58 @@ func handleHTTP(conn net.Conn, remoteAddr string) {
         h1 { color: #333; }
         pre { background: #fff; padding: 20px; border-radius: 8px; overflow-x: auto; }
         a { color: #0066cc; }
+        .risk-low { color: #16a34a; }
+        .risk-medium { color: #ca8a04; }
+        .risk-high { color: #dc2626; }
     </style>
 </head>
 <body>
     <h1>TLS Fingerprint Server</h1>
     <p>Your TLS fingerprint has been captured!</p>
-    <p>Visit <a href="/api/fingerprint">/api/fingerprint</a> to see the result.</p>
+    <p>Visit <a href="/api/fingerprint">/api/fingerprint</a> to see the raw result.</p>
     <h2>API Endpoints:</h2>
     <ul>
-        <li><a href="/api/fingerprint">/api/fingerprint</a> - Get your TLS fingerprint</li>
+        <li><a href="/api/fingerprint">/api/fingerprint</a> - Get your raw TLS/HTTP2/TCP fingerprint</li>
+        <li><a href="/api/analysis">/api/analysis</a> - <strong>Get full security analysis with conclusions</strong></li>
         <li><a href="/api/all">/api/all</a> - Get all stored fingerprints</li>
+    </ul>
+    <h2>Security Analysis</h2>
+    <p>The <code>/api/analysis</code> endpoint provides:</p>
+    <ul>
+        <li>Client identification (Browser/Library/Bot)</li>
+        <li>Cross-layer consistency check (TLS vs HTTP/2 vs TCP vs User-Agent)</li>
+        <li>Bot/Spoofing detection</li>
+        <li>Security advice for defenders and pentesters</li>
     </ul>
 </body>
 </html>`)
 		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\nAccess-Control-Allow-Origin: *\r\n\r\n", len(body))
+
+	case path == "/api/analysis":
+		storeMutex.RLock()
+		host, _, _ := net.SplitHostPort(remoteAddr)
+		fp := fingerprintStore[host]
+		if fp == nil {
+			fp = fingerprintStore[remoteAddr]
+		}
+		storeMutex.RUnlock()
+
+		if fp != nil {
+			analysis := AnalyzeFingerprint(fp, host, userAgent)
+			result := map[string]interface{}{
+				"success":   true,
+				"client_ip": host,
+				"analysis":  analysis,
+			}
+			body, _ = json.MarshalIndent(result, "", "  ")
+		} else {
+			result := map[string]interface{}{
+				"success": false,
+				"error":   "No fingerprint found. Visit this page in a browser first to capture fingerprint.",
+			}
+			body, _ = json.MarshalIndent(result, "", "  ")
+		}
+		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: %d\r\nAccess-Control-Allow-Origin: *\r\n\r\n", len(body))
 
 	case path == "/api/fingerprint":
 		storeMutex.RLock()

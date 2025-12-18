@@ -376,18 +376,57 @@
 
             <!-- TLS Section -->
             <div class="tls-section">
-                <h3>TLS Fingerprint (JA3/JA4)</h3>
-                <p>TLS fingerprints require a direct connection to our Go-based TLS server.</p>
+                <h3>TLS/HTTP2/TCP Fingerprint Server</h3>
+                <p>Network-level fingerprints require a direct connection to our Go-based TLS server.</p>
                 <div class="api-subsection">
-                    <h4 class="api-subsection-title">TLS Server Endpoint</h4>
+                    <h4 class="api-subsection-title">TLS Server Endpoints</h4>
+                    <table class="api-table">
+                        <thead><tr><th>Endpoint</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>/api/fingerprint</code></td><td>Raw fingerprint data (TLS/JA3/JA4, HTTP/2, TCP/IP)</td></tr>
+                            <tr><td><code>/api/analysis</code></td><td>Full analysis with risk assessment, bot detection, and security recommendations</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="api-subsection">
+                    <h4 class="api-subsection-title">Base URL</h4>
                     <pre class="api-code" id="tlsServerUrl">Loading...</pre>
+                </div>
+                <div class="api-subsection">
+                    <h4 class="api-subsection-title">/api/analysis Response</h4>
+                    <pre class="api-code">{
+  "success": true,
+  "client_ip": "x.x.x.x",
+  "analysis": {
+    "summary": {
+      "risk_level": "low|medium|high",
+      "is_bot": false,
+      "is_spoofed": false,
+      "detected_client": "Browser|Library|Bot",
+      "detected_os": "Windows|macOS|Linux|..."
+    },
+    "tls_analysis": { ... },
+    "http2_analysis": { ... },
+    "tcp_analysis": { ... },
+    "consistency_check": {
+      "passed": true,
+      "score": 100,
+      "details": [...]
+    },
+    "security_advice": {
+      "for_defenders": [...],
+      "for_pentesters": [...]
+    },
+    "raw_fingerprint": { ... }
+  }
+}</pre>
                 </div>
                 <div class="api-subsection">
                     <h4 class="api-subsection-title">Steps</h4>
                     <ol>
                         <li>Visit the TLS server URL in your browser</li>
                         <li>Accept the self-signed certificate</li>
-                        <li>Access <code>/api/fingerprint</code> to get JA3/JA4</li>
+                        <li>Access <code>/api/fingerprint</code> for raw data or <code>/api/analysis</code> for full analysis</li>
                     </ol>
                 </div>
             </div>
