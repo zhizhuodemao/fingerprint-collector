@@ -206,72 +206,85 @@ func analyzeHTTP2(http2 *HTTP2Fingerprint) *HTTP2Analysis {
 
 	// Known HTTP/2 fingerprints (exact match)
 	knownHTTP2 := map[string]string{
-		"1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p":    "Chrome",
+		// Chrome (modern versions with ENABLE_PUSH=0)
+		"1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p": "Chrome",
+		// Chrome (older versions with MAX_CONCURRENT_STREAMS)
+		"1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p": "Chrome (legacy)",
+		// Firefox
 		"1:65536;4:131072;5:16384|12517377|3:0:0:201,5:0:0:101,7:0:0:1,9:0:7:1,11:0:3:1,13:0:0:241|m,p,a,s": "Firefox",
+		// Safari
 		"1:65536;4:65535;3:100|0|0|m,s,p,a": "Safari",
+		// curl-impersonate (missing :path in pseudo_header_order)
+		"1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s": "curl-impersonate",
 	}
 
 	if clientName, ok := knownHTTP2[http2.Akamai]; ok {
 		analysis.ClientMatch = clientName
 		analysis.Observations = append(analysis.Observations, fmt.Sprintf("HTTP/2 fingerprint matches %s", clientName))
+		// If exact match to curl-impersonate, mark as impersonator
+		if clientName == "curl-impersonate" {
+			analysis.IsImpersonator = true
+			analysis.ImpersonatorType = "curl-impersonate (exact match)"
+		}
 	} else {
 		analysis.Observations = append(analysis.Observations, "HTTP/2 fingerprint doesn't match common browsers")
 	}
 
+	// Analyze settings for Chrome default window size
+	for _, setting := range http2.Settings {
+		if setting.Name == "INITIAL_WINDOW_SIZE" && setting.Value == 6291456 {
+			analysis.Observations = append(analysis.Observations, "Window size matches Chrome default")
+			break
+		}
+	}
+
 	// ===== curl-impersonate / Impersonator Detection =====
+	// Key difference: Real Chrome sends "m,a,s,p", curl-impersonate sends "m,a,s"
 	impersonatorSignals := 0
 	var impersonatorReasons []string
 
-	// Signal 1: pseudo_header_order missing :path
-	// Real Chrome sends "m,a,s,p", curl-impersonate sends "m,a,s"
-	if http2.PseudoHeaderOrder != "" {
-		if !strings.Contains(http2.PseudoHeaderOrder, "p") {
-			impersonatorSignals += 2
-			impersonatorReasons = append(impersonatorReasons, "pseudo_header_order missing ':path' - curl-impersonate signature")
+	// Extract pseudo_header_order from akamai string if not set directly
+	pseudoOrder := http2.PseudoHeaderOrder
+	if pseudoOrder == "" && http2.Akamai != "" {
+		// Akamai format: SETTINGS|WINDOW_UPDATE|PRIORITY|pseudo_header_order
+		parts := strings.Split(http2.Akamai, "|")
+		if len(parts) >= 4 {
+			pseudoOrder = parts[3]
 		}
 	}
 
-	// Signal 2: Explicit ENABLE_PUSH=0 (id=2)
-	// Real Chrome doesn't send this setting explicitly
-	hasEnablePush := false
-	hasMaxConcurrentStreams := false
-	for _, setting := range http2.Settings {
-		if setting.ID == 2 { // ENABLE_PUSH
-			hasEnablePush = true
-			if setting.Value == 0 {
-				impersonatorSignals++
-				impersonatorReasons = append(impersonatorReasons, "explicit ENABLE_PUSH=0 - uncommon for real browsers")
+	// Signal 1: pseudo_header_order missing :path (strongest signal)
+	// Real Chrome sends "m,a,s,p", curl-impersonate sends "m,a,s"
+	if pseudoOrder != "" {
+		if !strings.Contains(pseudoOrder, "p") {
+			impersonatorSignals += 3  // Strong signal
+			impersonatorReasons = append(impersonatorReasons,
+				fmt.Sprintf("pseudo_header_order '%s' missing ':path' - curl-impersonate signature (Chrome uses 'm,a,s,p')", pseudoOrder))
+		}
+	}
+
+	// Signal 2: frame_order check - real browsers send HEADERS after SETTINGS+WINDOW_UPDATE
+	// curl-impersonate may have different frame ordering
+	if len(http2.FrameOrder) > 0 {
+		hasHeaders := false
+		for _, frame := range http2.FrameOrder {
+			if frame == "HEADERS" {
+				hasHeaders = true
+				break
 			}
 		}
-		if setting.ID == 3 { // MAX_CONCURRENT_STREAMS
-			hasMaxConcurrentStreams = true
-		}
-		if setting.Name == "INITIAL_WINDOW_SIZE" && setting.Value == 6291456 {
-			analysis.Observations = append(analysis.Observations, "Window size matches Chrome default")
-		}
-	}
-
-	// Signal 3: Missing MAX_CONCURRENT_STREAMS (id=3)
-	// Real Chrome sends "3:1000", curl-impersonate often omits it
-	if !hasMaxConcurrentStreams && hasEnablePush {
-		impersonatorSignals++
-		impersonatorReasons = append(impersonatorReasons, "missing MAX_CONCURRENT_STREAMS but has ENABLE_PUSH - curl-impersonate pattern")
-	}
-
-	// Signal 4: Has Chrome-like settings but doesn't match exactly
-	// Check if it looks like Chrome but isn't
-	if strings.Contains(http2.Akamai, "1:65536") &&
-	   strings.Contains(http2.Akamai, "4:6291456") &&
-	   strings.Contains(http2.Akamai, "15663105") {
-		// Looks like Chrome but doesn't match exactly
-		if analysis.ClientMatch != "Chrome" {
+		// If no HEADERS frame captured, might indicate impersonator
+		// (though this could also be a parsing issue)
+		if !hasHeaders && pseudoOrder == "" {
+			// Only count if we couldn't get pseudo_header_order at all
 			impersonatorSignals++
-			impersonatorReasons = append(impersonatorReasons, "Chrome-like HTTP/2 settings but fingerprint doesn't match exactly")
+			impersonatorReasons = append(impersonatorReasons, "No HEADERS frame detected - possible impersonator or parsing issue")
 		}
 	}
 
 	// Determine if this is an impersonator
-	if impersonatorSignals >= 2 {
+	// Only trigger if we have strong evidence (missing :path in pseudo_header_order)
+	if impersonatorSignals >= 3 {
 		analysis.IsImpersonator = true
 		analysis.ImpersonatorType = "curl-impersonate/curl_cffi"
 		analysis.Observations = append(analysis.Observations,
@@ -279,9 +292,9 @@ func analyzeHTTP2(http2 *HTTP2Fingerprint) *HTTP2Analysis {
 		for _, reason := range impersonatorReasons {
 			analysis.Observations = append(analysis.Observations, fmt.Sprintf("  → %s", reason))
 		}
-	} else if impersonatorSignals == 1 {
+	} else if impersonatorSignals > 0 {
 		analysis.Observations = append(analysis.Observations,
-			fmt.Sprintf("Possible impersonator (1 signal): %s", strings.Join(impersonatorReasons, ", ")))
+			fmt.Sprintf("Note: %d potential impersonator signal(s): %s", impersonatorSignals, strings.Join(impersonatorReasons, "; ")))
 	}
 
 	return analysis
