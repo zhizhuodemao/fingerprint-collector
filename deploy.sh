@@ -4,9 +4,9 @@
 
 set -e
 
-# ============ 配置 ============
+# ============ 默认配置 ============
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
-SERVER_HOST="${SERVER_HOST:-$(hostname -I | awk '{print $1}')}"
+DEFAULT_HOST="222.73.60.30"
 TLS_PORT="${TLS_PORT:-8443}"
 FLASK_PORT="${FLASK_PORT:-5000}"
 ENABLE_TCP="${ENABLE_TCP:-1}"
@@ -22,6 +22,28 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
+
+# ============ 交互式配置 SERVER_HOST ============
+configure_host() {
+    # 如果已通过环境变量设置，则跳过交互
+    if [ -n "$SERVER_HOST" ]; then
+        log_info "使用环境变量 SERVER_HOST: $SERVER_HOST"
+        return
+    fi
+
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}        服务器地址配置${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    echo "请输入服务器的公网 IP 或域名"
+    echo "(用于 TLS 证书生成和前端访问)"
+    echo ""
+    read -p "SERVER_HOST [$DEFAULT_HOST]: " input_host
+    SERVER_HOST="${input_host:-$DEFAULT_HOST}"
+    echo ""
+    log_info "使用地址: $SERVER_HOST"
+}
 
 # ============ 检查 Root ============
 check_root() {
@@ -312,6 +334,7 @@ main() {
     log_info "部署目录: $APP_DIR"
 
     check_root
+    configure_host
     detect_os
     check_dependencies
     install_python_deps
