@@ -217,6 +217,14 @@ fingerprint-collector/
 - **跨平台编译**: TCP 指纹功能需要本地编译 (CGO + libpcap)
 - **NAT/VPN**: TTL 可能改变，但仍可推断初始值
 
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [网络指纹综述](docs/fingerprint-overview.md) | TLS/HTTP2/TCP 指纹技术深度研究 |
+| [浏览器指纹综述](docs/browser-fingerprint-overview.md) | Canvas/WebGL/Audio 指纹与爬虫对抗 |
+| [部署指南](DEPLOY.md) | 详细的 Linux 服务器部署步骤 |
+
 ## 参考资料
 
 - [JA3 Fingerprinting](https://github.com/salesforce/ja3)
