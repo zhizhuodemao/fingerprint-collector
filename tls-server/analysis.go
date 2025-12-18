@@ -41,9 +41,11 @@ type TLSAnalysis struct {
 
 // HTTP2Analysis analyzes HTTP/2 fingerprint
 type HTTP2Analysis struct {
-	Detected      bool     `json:"detected"`
-	ClientMatch   string   `json:"client_match,omitempty"`  // Matches Chrome/Firefox/etc.
-	Observations  []string `json:"observations"`
+	Detected        bool     `json:"detected"`
+	ClientMatch     string   `json:"client_match,omitempty"`  // Matches Chrome/Firefox/etc.
+	IsImpersonator  bool     `json:"is_impersonator"`         // Detected as curl-impersonate or similar
+	ImpersonatorType string  `json:"impersonator_type,omitempty"` // curl-impersonate, tls-client, etc.
+	Observations    []string `json:"observations"`
 }
 
 // TCPAnalysis analyzes TCP/IP fingerprint
@@ -202,7 +204,7 @@ func analyzeHTTP2(http2 *HTTP2Fingerprint) *HTTP2Analysis {
 		Detected: true,
 	}
 
-	// Known HTTP/2 fingerprints
+	// Known HTTP/2 fingerprints (exact match)
 	knownHTTP2 := map[string]string{
 		"1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p":    "Chrome",
 		"1:65536;4:131072;5:16384|12517377|3:0:0:201,5:0:0:101,7:0:0:1,9:0:7:1,11:0:3:1,13:0:0:241|m,p,a,s": "Firefox",
@@ -216,12 +218,70 @@ func analyzeHTTP2(http2 *HTTP2Fingerprint) *HTTP2Analysis {
 		analysis.Observations = append(analysis.Observations, "HTTP/2 fingerprint doesn't match common browsers")
 	}
 
-	// Analyze settings
+	// ===== curl-impersonate / Impersonator Detection =====
+	impersonatorSignals := 0
+	var impersonatorReasons []string
+
+	// Signal 1: pseudo_header_order missing :path
+	// Real Chrome sends "m,a,s,p", curl-impersonate sends "m,a,s"
+	if http2.PseudoHeaderOrder != "" {
+		if !strings.Contains(http2.PseudoHeaderOrder, "p") {
+			impersonatorSignals += 2
+			impersonatorReasons = append(impersonatorReasons, "pseudo_header_order missing ':path' - curl-impersonate signature")
+		}
+	}
+
+	// Signal 2: Explicit ENABLE_PUSH=0 (id=2)
+	// Real Chrome doesn't send this setting explicitly
+	hasEnablePush := false
+	hasMaxConcurrentStreams := false
 	for _, setting := range http2.Settings {
+		if setting.ID == 2 { // ENABLE_PUSH
+			hasEnablePush = true
+			if setting.Value == 0 {
+				impersonatorSignals++
+				impersonatorReasons = append(impersonatorReasons, "explicit ENABLE_PUSH=0 - uncommon for real browsers")
+			}
+		}
+		if setting.ID == 3 { // MAX_CONCURRENT_STREAMS
+			hasMaxConcurrentStreams = true
+		}
 		if setting.Name == "INITIAL_WINDOW_SIZE" && setting.Value == 6291456 {
 			analysis.Observations = append(analysis.Observations, "Window size matches Chrome default")
-			break
 		}
+	}
+
+	// Signal 3: Missing MAX_CONCURRENT_STREAMS (id=3)
+	// Real Chrome sends "3:1000", curl-impersonate often omits it
+	if !hasMaxConcurrentStreams && hasEnablePush {
+		impersonatorSignals++
+		impersonatorReasons = append(impersonatorReasons, "missing MAX_CONCURRENT_STREAMS but has ENABLE_PUSH - curl-impersonate pattern")
+	}
+
+	// Signal 4: Has Chrome-like settings but doesn't match exactly
+	// Check if it looks like Chrome but isn't
+	if strings.Contains(http2.Akamai, "1:65536") &&
+	   strings.Contains(http2.Akamai, "4:6291456") &&
+	   strings.Contains(http2.Akamai, "15663105") {
+		// Looks like Chrome but doesn't match exactly
+		if analysis.ClientMatch != "Chrome" {
+			impersonatorSignals++
+			impersonatorReasons = append(impersonatorReasons, "Chrome-like HTTP/2 settings but fingerprint doesn't match exactly")
+		}
+	}
+
+	// Determine if this is an impersonator
+	if impersonatorSignals >= 2 {
+		analysis.IsImpersonator = true
+		analysis.ImpersonatorType = "curl-impersonate/curl_cffi"
+		analysis.Observations = append(analysis.Observations,
+			fmt.Sprintf("⚠️ Detected as browser impersonator (confidence: %d signals)", impersonatorSignals))
+		for _, reason := range impersonatorReasons {
+			analysis.Observations = append(analysis.Observations, fmt.Sprintf("  → %s", reason))
+		}
+	} else if impersonatorSignals == 1 {
+		analysis.Observations = append(analysis.Observations,
+			fmt.Sprintf("Possible impersonator (1 signal): %s", strings.Join(impersonatorReasons, ", ")))
 	}
 
 	return analysis
@@ -340,7 +400,10 @@ func generateSummary(result *AnalysisResult, userAgent string) {
 	summary := result.Summary
 
 	// Determine detected client
-	if result.TLSAnalysis.ClientName != "" {
+	if result.HTTP2Analysis != nil && result.HTTP2Analysis.IsImpersonator {
+		// Impersonator detected - override client name
+		summary.DetectedClient = fmt.Sprintf("Impersonator (%s)", result.HTTP2Analysis.ImpersonatorType)
+	} else if result.TLSAnalysis.ClientName != "" {
 		summary.DetectedClient = result.TLSAnalysis.ClientName
 	} else {
 		summary.DetectedClient = "Unknown"
@@ -375,22 +438,42 @@ func generateSummary(result *AnalysisResult, userAgent string) {
 
 	// Determine if likely bot
 	botSignals := 0
+
+	// Signal 1: TLS client type is Library/Bot
 	if result.TLSAnalysis.ClientType == "Library" || result.TLSAnalysis.ClientType == "Bot" {
 		botSignals++
 	}
+
+	// Signal 2: Consistency check failed
 	if result.ConsistencyCheck.Score < 70 {
 		botSignals++
 	}
+
+	// Signal 3: No SNI
 	if result.RawFingerprint.TLS != nil && result.RawFingerprint.TLS.SNI == "" {
 		botSignals++
 	}
+
+	// Signal 4: HTTP/2 Impersonator detected (strong signal)
+	if result.HTTP2Analysis != nil && result.HTTP2Analysis.IsImpersonator {
+		botSignals += 2  // Strong signal - counts as 2
+	}
+
 	summary.IsBot = botSignals >= 2
 
-	// Determine if spoofed
-	summary.IsSpoofed = len(result.ConsistencyCheck.Anomalies) > 0
+	// Determine if spoofed (trying to look like something else)
+	summary.IsSpoofed = len(result.ConsistencyCheck.Anomalies) > 0 ||
+		(result.HTTP2Analysis != nil && result.HTTP2Analysis.IsImpersonator)
 
 	// Determine risk level
 	switch {
+	case result.HTTP2Analysis != nil && result.HTTP2Analysis.IsImpersonator:
+		// Impersonator always gets medium or higher
+		if result.ConsistencyCheck.Score >= 80 {
+			summary.RiskLevel = "medium"
+		} else {
+			summary.RiskLevel = "high"
+		}
 	case result.ConsistencyCheck.Score >= 90 && !summary.IsBot:
 		summary.RiskLevel = "low"
 	case result.ConsistencyCheck.Score >= 60:
@@ -400,10 +483,14 @@ func generateSummary(result *AnalysisResult, userAgent string) {
 	}
 
 	// Add warnings
+	if result.HTTP2Analysis != nil && result.HTTP2Analysis.IsImpersonator {
+		summary.Warnings = append(summary.Warnings,
+			fmt.Sprintf("🚨 Browser impersonator detected: %s", result.HTTP2Analysis.ImpersonatorType))
+	}
 	if summary.IsBot {
 		summary.Warnings = append(summary.Warnings, "Client appears to be automated (bot/script)")
 	}
-	if summary.IsSpoofed {
+	if summary.IsSpoofed && !(result.HTTP2Analysis != nil && result.HTTP2Analysis.IsImpersonator) {
 		summary.Warnings = append(summary.Warnings, "Fingerprint inconsistencies detected - possible spoofing")
 	}
 	if result.TLSAnalysis.CipherStrength == "Weak" {
@@ -434,7 +521,16 @@ func generateSecurityAdvice(result *AnalysisResult) {
 		})
 	}
 
-	if result.Summary.IsSpoofed {
+	if result.HTTP2Analysis != nil && result.HTTP2Analysis.IsImpersonator {
+		advice.ForDefenders = append(advice.ForDefenders, AdviceItem{
+			Category:    "Impersonator Detection",
+			Title:       fmt.Sprintf("Browser Impersonator: %s", result.HTTP2Analysis.ImpersonatorType),
+			Description: "This client is using a browser impersonation library (curl-impersonate, curl_cffi, tls-client). HTTP/2 fingerprint reveals impersonation artifacts.",
+			Priority:    "critical",
+		})
+	}
+
+	if result.Summary.IsSpoofed && !(result.HTTP2Analysis != nil && result.HTTP2Analysis.IsImpersonator) {
 		advice.ForDefenders = append(advice.ForDefenders, AdviceItem{
 			Category:    "Spoofing Detection",
 			Title:       "Fingerprint Manipulation Detected",
@@ -485,6 +581,22 @@ func generateSecurityAdvice(result *AnalysisResult) {
 			Category:    "Improvement",
 			Title:       "Fix Inconsistencies",
 			Description: fmt.Sprintf("Detected %d cross-layer anomalies. These can be used to detect your client.", len(result.ConsistencyCheck.Anomalies)),
+			Priority:    "high",
+		})
+	}
+
+	// Impersonator-specific advice for pentesters
+	if result.HTTP2Analysis != nil && result.HTTP2Analysis.IsImpersonator {
+		advice.ForPentesters = append(advice.ForPentesters, AdviceItem{
+			Category:    "Warning",
+			Title:       "Impersonator Detected via HTTP/2",
+			Description: "Your curl-impersonate/curl_cffi is detected through HTTP/2 fingerprint. Key issues: (1) pseudo_header_order missing ':path', (2) explicit ENABLE_PUSH=0, (3) missing MAX_CONCURRENT_STREAMS.",
+			Priority:    "critical",
+		})
+		advice.ForPentesters = append(advice.ForPentesters, AdviceItem{
+			Category:    "Recommendation",
+			Title:       "Use Real Browser Instead",
+			Description: "For complete evasion, use Playwright/Puppeteer with stealth plugins, or a real browser with automation. HTTP/2 frame-level fingerprints are hard to fake with libraries.",
 			Priority:    "high",
 		})
 	}
