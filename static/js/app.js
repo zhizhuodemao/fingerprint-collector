@@ -34,6 +34,7 @@ class FingerprintApp {
         this.tlsData = null;
         this.serverData = null;
         this.config = null;
+        this.consistencyTippy = null;
         this.init();
     }
 
@@ -385,12 +386,6 @@ class FingerprintApp {
         document.getElementById('tlsId').textContent = result.tls_id || '-';
         document.getElementById('collectedAt').textContent = new Date().toLocaleString('zh-CN');
 
-        // Confidence badge
-        const confidence = deviceId?.confidence || 0;
-        const badge = document.getElementById('confidenceBadge');
-        badge.textContent = `${confidence}% Confidence`;
-        badge.className = confidence >= 80 ? 'badge success' : 'badge';
-
         // 一致性校验状态 - 等待 TLS 数据后更新
         const consistencyEl = document.getElementById('consistencyStatus');
         consistencyEl.textContent = 'Checking...';
@@ -438,6 +433,10 @@ class FingerprintApp {
         const anomaliesContainer = document.getElementById('anomaliesContainer');
         const anomaliesList = document.getElementById('anomaliesList');
 
+        // 构建 Tippy tooltip
+        const tooltipContent = this.buildConsistencyTooltipContent(tcp);
+        this.initConsistencyTippy(consistencyEl, tooltipContent);
+
         if (!tcp) {
             consistencyEl.textContent = 'N/A';
             consistencyEl.className = 'consistency-status';
@@ -459,6 +458,117 @@ class FingerprintApp {
             anomaliesList.innerHTML = anomalies.map(a => `<li>${a}</li>`).join('');
             anomaliesContainer.style.display = 'block';
         }
+    }
+
+    // 初始化/更新 Tippy tooltip
+    initConsistencyTippy(element, content) {
+        if (this.consistencyTippy) {
+            this.consistencyTippy.setContent(content);
+        } else if (typeof tippy !== 'undefined') {
+            this.consistencyTippy = tippy(element, {
+                content: content,
+                allowHTML: true,
+                theme: 'consistency',
+                placement: 'top',
+                arrow: true,
+                animation: 'shift-away',
+                interactive: true,
+                appendTo: document.body,
+                maxWidth: 400,
+                trigger: 'mouseenter focus',
+                hideOnClick: false,
+            });
+        }
+    }
+
+    // 构建 Tippy tooltip 内容
+    buildConsistencyTooltipContent(tcp) {
+        const checkIcon = `<svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`;
+        const failIcon = `<svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+        const infoIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+        const successIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+        const warningIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+
+        if (!tcp) {
+            return `
+                <div class="tooltip-header neutral">
+                    ${infoIcon}
+                    <span>无 TCP 数据</span>
+                </div>
+                <div class="tooltip-note">
+                    TCP/IP 指纹采集需要以 sudo 权限启动服务端<br>
+                    <code style="font-size: 0.7rem;">ENABLE_TCP=1 python app.py</code>
+                </div>
+            `;
+        }
+
+        const anomalies = tcp.anomalies || [];
+        const checks = this.buildConsistencyChecks(tcp, anomalies);
+        const passed = anomalies.length === 0;
+
+        const headerClass = passed ? 'pass' : 'fail';
+        const headerIcon = passed ? successIcon : warningIcon;
+        const headerText = passed ? '所有校验通过' : `检测到 ${anomalies.length} 项异常`;
+
+        const checksList = checks.map(c => {
+            if (c.failed) {
+                return `
+                    <li>
+                        <span class="check-fail">${failIcon}</span>
+                        <div>
+                            <div class="check-name">${c.name}</div>
+                            <div class="check-reason">${c.reason}</div>
+                        </div>
+                    </li>
+                `;
+            }
+            return `
+                <li>
+                    <span class="check-pass">${checkIcon}</span>
+                    <span class="check-name">${c.name}</span>
+                </li>
+            `;
+        }).join('');
+
+        let content = `
+            <div class="tooltip-header ${headerClass}">
+                ${headerIcon}
+                <span>${headerText}</span>
+            </div>
+            <ul class="tooltip-checks">${checksList}</ul>
+        `;
+
+        // 添加额外信息
+        if (tcp.inferred_os) {
+            content += `
+                <div class="tooltip-note">
+                    推断 OS: <strong>${tcp.inferred_os}</strong> (${tcp.os_confidence || 'unknown'})
+                </div>
+            `;
+        }
+
+        return content;
+    }
+
+    // 构建校验项列表
+    buildConsistencyChecks(tcp, anomalies) {
+        const checks = [
+            { name: 'OS 一致性', key: 'OS_MISMATCH', desc: 'User-Agent 与 TCP 指纹匹配' },
+            { name: 'TCP Timestamp', key: 'TCP_TIMESTAMP', desc: '时间戳选项正常' },
+            { name: '窗口大小', key: 'DEFAULT_WINDOW', desc: '非默认窗口大小' },
+            { name: '系统运行时长', key: 'SHORT_UPTIME', desc: 'Uptime 正常' },
+            { name: 'TCP 选项', key: 'MINIMAL_OPTIONS', desc: '选项数量正常' }
+        ];
+
+        return checks.map(check => {
+            const failedAnomaly = anomalies.find(a => a.includes(check.key));
+            if (failedAnomaly) {
+                // 提取失败原因
+                const reason = failedAnomaly.split(':').slice(1).join(':').trim() || '异常';
+                return { ...check, failed: true, reason };
+            }
+            return { ...check, failed: false };
+        });
     }
 
     copyToClipboard(text, btnOrId) {

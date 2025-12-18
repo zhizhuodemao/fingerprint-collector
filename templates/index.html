@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
     <link rel="stylesheet" href="/static/css/simple.css">
     <script>
         (function() {
@@ -66,7 +67,6 @@
             <section class="card card-featured" id="deviceCard" style="display:none;">
                 <div class="card-header">
                     <h2>Device Identity</h2>
-                    <span class="badge" id="confidenceBadge">-</span>
                 </div>
                 <div class="device-id-grid">
                     <div class="device-id-item">
@@ -108,7 +108,7 @@
                     <div class="device-id-item">
                         <label>Consistency Check</label>
                         <div class="id-value">
-                            <code id="consistencyStatus" class="consistency-status">-</code>
+                            <code id="consistencyStatus" class="consistency-status" data-tippy-content="">-</code>
                         </div>
                     </div>
                     <div class="device-id-item">
@@ -265,6 +265,8 @@
         </footer>
     </div>
 
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
     <script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

@@ -511,6 +511,120 @@ body {
     color: var(--error);
 }
 
+/* Consistency Status Tooltip (Tippy.js) */
+.consistency-status {
+    cursor: help;
+}
+
+/* Tippy.js Custom Theme */
+.tippy-box[data-theme~='consistency'] {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    color: var(--text);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    max-width: 360px;
+}
+
+.tippy-box[data-theme~='consistency'] .tippy-content {
+    padding: var(--space-md);
+}
+
+.tippy-box[data-theme~='consistency'] .tippy-arrow {
+    color: var(--bg-card);
+}
+
+.tippy-box[data-theme~='consistency'][data-placement^='top'] > .tippy-arrow::before {
+    border-top-color: var(--border);
+}
+
+.tippy-box[data-theme~='consistency'][data-placement^='bottom'] > .tippy-arrow::before {
+    border-bottom-color: var(--border);
+}
+
+/* Tooltip Content Styles */
+.tooltip-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-bottom: var(--space-sm);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border);
+}
+
+.tooltip-header.pass {
+    color: var(--success);
+}
+
+.tooltip-header.fail {
+    color: var(--error);
+}
+
+.tooltip-header.neutral {
+    color: var(--text-muted);
+}
+
+.tooltip-header svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.tooltip-checks {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.tooltip-checks li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-xs) 0;
+    font-size: 0.8125rem;
+}
+
+.tooltip-checks li + li {
+    border-top: 1px dashed var(--border);
+}
+
+.tooltip-checks .check-icon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+}
+
+.tooltip-checks .check-pass {
+    color: var(--success);
+}
+
+.tooltip-checks .check-fail {
+    color: var(--error);
+}
+
+.tooltip-checks .check-name {
+    color: var(--text-secondary);
+}
+
+.tooltip-checks .check-reason {
+    color: var(--error);
+    font-size: 0.75rem;
+    margin-top: 2px;
+}
+
+.tooltip-note {
+    margin-top: var(--space-sm);
+    padding-top: var(--space-sm);
+    border-top: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
     .device-id-grid {
