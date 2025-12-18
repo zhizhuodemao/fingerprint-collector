@@ -43,3 +43,7 @@ tls-server/tls-server-*
 
 # Test files
 test.py
+test_detail.py
+
+# Archives
+*.tar.gz
