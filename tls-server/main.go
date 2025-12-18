@@ -160,6 +160,10 @@ func main() {
 	disableTCP := flag.Bool("disable-tcp", false, "禁用 TCP/IP 指纹采集")
 	flag.Parse()
 
+	// Initialize fingerprint database
+	log.Println("Loading fingerprint databases...")
+	GetDatabase()
+
 	// Load certificate
 	cert, err := tls.LoadX509KeyPair(*certFile, *keyFile)
 	if err != nil {
@@ -481,15 +485,12 @@ func respondToHTTP2Request(conn net.Conn, data []byte, combined *CombinedFingerp
 	var jsonBody []byte
 
 	if strings.Contains(path, "/api/analysis") {
-		// Return analysis
+		// Return analysis (简化格式)
 		host, _, _ := net.SplitHostPort(remoteAddr)
 		analysis := AnalyzeFingerprint(combined, host, userAgent)
-		response := map[string]interface{}{
-			"success":   true,
-			"client_ip": host,
-			"analysis":  analysis,
-		}
-		jsonBody, _ = json.MarshalIndent(response, "", "  ")
+		includeDetails := strings.Contains(path, "details=true")
+		simpleResult := BuildSimpleResult(analysis, includeDetails)
+		jsonBody, _ = json.MarshalIndent(simpleResult, "", "  ")
 	} else {
 		// Default: return fingerprint
 		response := map[string]interface{}{
@@ -986,7 +987,11 @@ func handleHTTP(conn net.Conn, remoteAddr string) {
 		return
 	}
 
-	path := parts[1]
+	fullPath := parts[1]
+	path := fullPath
+	if idx := strings.Index(path, "?"); idx != -1 {
+		path = path[:idx] // 去掉查询参数用于路由匹配
+	}
 
 	// Extract User-Agent header
 	userAgent := ""
@@ -1048,18 +1053,21 @@ func handleHTTP(conn net.Conn, remoteAddr string) {
 		}
 		storeMutex.RUnlock()
 
+		// 检查是否需要完整数据 (?details=true)
+		includeDetails := strings.Contains(fullPath, "details=true")
+
 		if fp != nil {
 			analysis := AnalyzeFingerprint(fp, host, userAgent)
-			result := map[string]interface{}{
-				"success":   true,
-				"client_ip": host,
-				"analysis":  analysis,
-			}
-			body, _ = json.MarshalIndent(result, "", "  ")
+			simpleResult := BuildSimpleResult(analysis, includeDetails)
+			body, _ = json.MarshalIndent(simpleResult, "", "  ")
 		} else {
 			result := map[string]interface{}{
-				"success": false,
-				"error":   "No fingerprint found. Visit this page in a browser first to capture fingerprint.",
+				"risk_score": 0,
+				"risk_level": "unknown",
+				"is_bot":     false,
+				"is_spoofed": false,
+				"client":     map[string]interface{}{"type": "unknown", "claimed": "Unknown", "detected": "Unknown", "match": false},
+				"error":      "No fingerprint found. Visit this page in a browser first.",
 			}
 			body, _ = json.MarshalIndent(result, "", "  ")
 		}

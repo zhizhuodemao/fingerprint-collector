@@ -1,0 +1,62 @@
+{
+  "description": "JA3 TLS fingerprint database",
+  "sources": [
+    "https://github.com/trisulnsm/ja3prints",
+    "https://github.com/salesforce/ja3",
+    "https://sslbl.abuse.ch/ja3-fingerprints/"
+  ],
+  "last_updated": "2025-01-15",
+  "fingerprints": {
+    "browsers": {
+      "e7d705a3286e19ea42f587b344ee6865": {"name": "Chrome", "platform": "Windows", "version": ""},
+      "b32309a26951912be7dba376398abc3b": {"name": "Chrome", "platform": "macOS", "version": ""},
+      "bd4267e1672f9df843ada7c963490a0d": {"name": "Chrome", "platform": "", "version": "50"},
+      "caeb3b546fc7469776d51f1f54a792ca": {"name": "Chrome", "platform": "", "version": "50"},
+      "2c3221f495d5e4debbb34935e1717703": {"name": "Chrome", "platform": "", "version": "41"},
+      "a0e9f5d64349fb13191bc781f81f42e1": {"name": "Chrome", "platform": "", "version": "70+"},
+      "b20c7e3efdc328b5d3965e5c9ba59b66": {"name": "Chrome", "platform": "", "version": "83+"},
+      "66918128f1b9b03303d77c6f2eefd128": {"name": "Chrome", "platform": "", "version": "100+"},
+      "cd08e31494f9531f560d64c695473da9": {"name": "Firefox", "platform": "", "version": ""},
+      "e4e80e11f594ebf2cb2ac6ae4ae4e2e5": {"name": "Firefox", "platform": "", "version": "60+"},
+      "839bbe3ed9d1862c5ea0d29e7adc5d0b": {"name": "Firefox", "platform": "", "version": "65+"},
+      "3b5074b1b5d032e5620f69f9f700ff0e": {"name": "Safari", "platform": "", "version": ""},
+      "78273d33877a36c0c30e3fb7578ee9e7": {"name": "Internet Explorer", "platform": "Windows", "version": "11"}
+    },
+    "libraries": {
+      "9e10692f1b7f78228b2d4e424db3a98c": {"name": "Python Requests", "language": "Python"},
+      "b885946e72ad51dca6c70abc2f773506": {"name": "Python Requests", "language": "Python", "version": "macOS/Python3.11+"},
+      "eb5de76a6b5b6cdd6c2249b96be74c51": {"name": "Python urllib", "language": "Python"},
+      "6734f37431670b3ab4292b8f60f29984": {"name": "curl", "language": "C"},
+      "e3bb8f1cd407701c585e7a84c578b26e": {"name": "Node.js", "language": "JavaScript"},
+      "f6ff5f03e9e14c2878d84d8a7e00f2e1": {"name": "Java HttpClient", "language": "Java"}
+    },
+    "bots": {
+      "de364c46b0dfc283b5e38c79ceae3f8f": {"name": "Yahoo! Slurp", "type": "crawler"}
+    },
+    "malware": {
+      "fc54e0d16d9764783542f0146a98b300": {"name": "AsyncRAT", "sample_count": 18320},
+      "8515076cbbca9dce33151b798f782456": {"name": "BitRAT", "sample_count": 1127},
+      "8916410db85077a5460817142dcbc8de": {"name": "TrickBot", "sample_count": 57892},
+      "fc2299d5b2964cd242c5a2c8c531a5f0": {"name": "Tofsee", "sample_count": 3866},
+      "51c64c77e60f3980eea90869b68c58a8": {"name": "Dridex", "sample_count": 286687},
+      "40adfd923eb82b89d8836ba37a19bca1": {"name": "CoinMiner", "sample_count": 16420},
+      "e62a5f4d538cbf169c2af71bec2399b4": {"name": "TrickBot", "sample_count": 30301},
+      "57f3642b4e37e28f5cbe3020c9331b4c": {"name": "Gozi", "sample_count": 42989},
+      "ec74a7b2e8c8d2ce61d27e7df549e33e": {"name": "Cobalt Strike", "sample_count": 0},
+      "72a589da586844d7f0818ce684948eea": {"name": "Metasploit", "sample_count": 0}
+    },
+    "mobile": {
+      "662fdc668dd6af994a0f903dbcf25d66": {"name": "Android App", "platform": "Android"},
+      "515601c4141e718865697050a7a1765f": {"name": "Android Google API", "platform": "Android"},
+      "855953256ecc8e2b6d2360aff8e5d337": {"name": "Android WebView", "platform": "Android"},
+      "99d8afeec9a4422120336ad720a5d692": {"name": "Android WebView", "platform": "Android"}
+    },
+    "apps": {
+      "93948924e733e9df15a3bb44404cd909": {"name": "Adium", "platform": "macOS"},
+      "e4adf57bf4a7a2dc08e9495f1b05c0ea": {"name": "Adium", "platform": "macOS"},
+      "61d50e7771aee7f2f4b89a7200b4d45e": {"name": "Adobe AcroCEF", "platform": ""},
+      "6003b52942a2e1e1ea72d802d153ec08": {"name": "Amazon Music", "platform": ""},
+      "eb149984fc9c44d85ed7f12c90d818be": {"name": "Spotify", "platform": ""}
+    }
+  }
+}

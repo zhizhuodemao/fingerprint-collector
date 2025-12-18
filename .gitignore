@@ -36,3 +36,10 @@ tls-server/*.crt
 
 # Logs
 *.log
+
+# Go binaries
+tls-server/tls-server
+tls-server/tls-server-*
+
+# Test files
+test.py

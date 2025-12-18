@@ -1,0 +1,142 @@
+{
+  "description": "HTTP/2 Akamai-style fingerprint database",
+  "sources": [
+    "https://blackhat.com/docs/eu-17/materials/eu-17-Shuster-Passive-Fingerprinting-Of-HTTP2-Clients-wp.pdf",
+    "https://privacycheck.sec.lrz.de/passive/fp_h2/fp_http2.html",
+    "https://browserleaks.com/http2"
+  ],
+  "last_updated": "2025-01-15",
+  "format": "SETTINGS|WINDOW_UPDATE|PRIORITY|pseudo_header_order",
+  "fingerprints": {
+    "browsers": {
+      "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p": {
+        "name": "Chrome",
+        "version": "Modern (100+)",
+        "notes": "ENABLE_PUSH=0, no MAX_CONCURRENT_STREAMS"
+      },
+      "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p": {
+        "name": "Chrome",
+        "version": "Legacy (pre-100)",
+        "notes": "Has MAX_CONCURRENT_STREAMS=1000"
+      },
+      "1:65536;3:1000;4:6291456|15663105|0|m,a,s,p": {
+        "name": "Chromium",
+        "version": "",
+        "platform": "Linux"
+      },
+      "3:1000;4:6291456|15663105|0|m,a,s,p": {
+        "name": "Opera",
+        "version": "40",
+        "notes": "Chromium-based"
+      },
+      "1:65536;4:131072;5:16384|12517377|3:0:0:201,5:0:0:101,7:0:0:1,9:0:7:1,11:0:3:1,13:0:0:241|m,p,a,s": {
+        "name": "Firefox",
+        "version": "52-61",
+        "notes": "Has PRIORITY frames"
+      },
+      "4:131072;5:16384|268369921|3:0:201:0,5:0:101:0|m,p,a,s": {
+        "name": "Firefox",
+        "version": "43-47",
+        "notes": "Older PRIORITY format"
+      },
+      "1:4096;4:32768;5:16384|12517377|0|m,p,a,s": {
+        "name": "Firefox Mobile",
+        "version": "60",
+        "platform": "Android"
+      },
+      "1:65536;4:65535;3:100|0|0|m,s,p,a": {
+        "name": "Safari",
+        "version": "",
+        "notes": "Unique pseudo_header_order"
+      },
+      "4:65535;3:100|0|0|m,s,p,a": {
+        "name": "Safari",
+        "version": "Older",
+        "notes": "No HEADER_TABLE_SIZE"
+      }
+    },
+    "impersonators": {
+      "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s": {
+        "name": "curl-impersonate",
+        "detection": "Missing :path in pseudo_header_order",
+        "confidence": "high"
+      },
+      "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s": {
+        "name": "curl-impersonate",
+        "detection": "Missing :path, legacy Chrome SETTINGS",
+        "confidence": "high"
+      },
+      "1:65536;4:6291456|15663105|0|m,a,s": {
+        "name": "curl-impersonate",
+        "detection": "Minimal SETTINGS, missing :path",
+        "confidence": "medium"
+      }
+    },
+    "libraries": {
+      "1:65536;4:65536|0|0|m,s,a,p": {
+        "name": "Go net/http",
+        "notes": "Default Go HTTP/2 settings"
+      },
+      "1:4096;4:65535|65535|0|m,s,a,p": {
+        "name": "Python httpx/h2",
+        "notes": "h2 library defaults"
+      },
+      "1:4096;3:100;4:65535|65535|0|m,a,s,p": {
+        "name": "Node.js http2",
+        "notes": "Built-in http2 module"
+      },
+      "4:65535|0|0|m,a,s,p": {
+        "name": "nghttp2",
+        "notes": "Used by curl"
+      }
+    }
+  },
+  "detection_rules": {
+    "impersonator_signals": [
+      {
+        "rule": "pseudo_header_order_missing_path",
+        "description": "pseudo_header_order missing 'p' (:path)",
+        "weight": 3,
+        "applies_to": "curl-impersonate, curl_cffi"
+      },
+      {
+        "rule": "enable_push_zero_with_max_streams",
+        "description": "ENABLE_PUSH=0 combined with MAX_CONCURRENT_STREAMS",
+        "weight": 1,
+        "applies_to": "Some impersonators"
+      },
+      {
+        "rule": "unusual_window_size",
+        "description": "WINDOW_UPDATE value doesn't match known browsers",
+        "weight": 1,
+        "applies_to": "Generic detection"
+      }
+    ],
+    "browser_signatures": {
+      "chrome": {
+        "window_update": 15663105,
+        "pseudo_header_order": "m,a,s,p",
+        "settings_pattern": "1:65536;2:0;4:6291456;6:262144",
+        "notes": "Chrome SETTINGS: HEADER_TABLE_SIZE=65536, ENABLE_PUSH=0, INITIAL_WINDOW_SIZE=6291456, MAX_HEADER_LIST_SIZE=262144"
+      },
+      "firefox": {
+        "window_update": 12517377,
+        "pseudo_header_order": "m,p,a,s",
+        "settings_pattern": "1:65536;4:131072;5:16384",
+        "has_priority": true,
+        "notes": "Firefox sends PRIORITY frames for streams 3,5,7,9,11,13"
+      },
+      "safari": {
+        "window_update": 10420225,
+        "pseudo_header_order": "m,s,a",
+        "pseudo_header_order_alt": ["m,s,p,a"],
+        "settings_pattern": "2:0;3:100;4:2097152;9:1",
+        "notes": "Safari SETTINGS: ENABLE_PUSH=0, MAX_CONCURRENT_STREAMS=100, INITIAL_WINDOW_SIZE=2097152, SETTINGS_ENABLE_CONNECT_PROTOCOL=1"
+      },
+      "curl": {
+        "pseudo_header_order": "m,p,s,a",
+        "notes": "Native curl without impersonation"
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "description": "JA4 TLS fingerprint database",
+  "sources": [
+    "https://github.com/FoxIO-LLC/ja4",
+    "https://blog.foxio.io/ja4+-network-fingerprinting"
+  ],
+  "last_updated": "2025-01-15",
+  "format": {
+    "structure": "PROTOCOL_VERSION_SNI_CIPHERCOUNT_EXTCOUNT_ALPN_CIPHERHASH_EXTHASH",
+    "example": "t13d1516h2_8daaf6152771_e5627efa2ab1"
+  },
+  "prefixes": {
+    "t13d": {"description": "TLS 1.3 with domain SNI", "client_type": "Browser", "risk": "low"},
+    "t13i": {"description": "TLS 1.3 without SNI", "client_type": "Library/Bot", "risk": "medium"},
+    "t12d": {"description": "TLS 1.2 with domain SNI", "client_type": "Browser/App", "risk": "low"},
+    "t12i": {"description": "TLS 1.2 without SNI", "client_type": "Library/Bot", "risk": "medium"},
+    "t11d": {"description": "TLS 1.1 with domain SNI", "client_type": "Legacy", "risk": "high"},
+    "t11i": {"description": "TLS 1.1 without SNI", "client_type": "Legacy Bot", "risk": "high"},
+    "t10d": {"description": "TLS 1.0 with domain SNI", "client_type": "Very Legacy", "risk": "high"},
+    "t10i": {"description": "TLS 1.0 without SNI", "client_type": "Very Legacy Bot", "risk": "high"},
+    "q13d": {"description": "QUIC with domain SNI", "client_type": "Browser (HTTP/3)", "risk": "low"},
+    "q13i": {"description": "QUIC without SNI", "client_type": "Library", "risk": "medium"}
+  },
+  "known_fingerprints": {
+    "t13d1516h2": {
+      "pattern": "prefix_only",
+      "clients": ["Chrome", "Edge", "Brave"],
+      "notes": "Modern Chromium-based browsers"
+    },
+    "t13d1715h2": {
+      "pattern": "prefix_only",
+      "clients": ["Firefox"],
+      "notes": "Modern Firefox"
+    },
+    "t13d1314h2": {
+      "pattern": "prefix_only",
+      "clients": ["Safari"],
+      "notes": "Modern Safari"
+    },
+    "t12d0909h1": {
+      "pattern": "prefix_only",
+      "clients": ["Python Requests", "curl"],
+      "notes": "Common HTTP libraries using TLS 1.2"
+    }
+  },
+  "analysis_rules": {
+    "alpn_indicators": {
+      "h2": "HTTP/2 capable (modern browser/client)",
+      "h1": "HTTP/1.1 only (older client or library)",
+      "00": "No ALPN (very suspicious, likely bot/library)"
+    },
+    "cipher_count_ranges": {
+      "high": {"min": 15, "max": 99, "typical_client": "Browser"},
+      "medium": {"min": 8, "max": 14, "typical_client": "App/Library"},
+      "low": {"min": 1, "max": 7, "typical_client": "Minimal client/Bot"}
+    },
+    "extension_count_ranges": {
+      "high": {"min": 12, "max": 99, "typical_client": "Browser"},
+      "medium": {"min": 6, "max": 11, "typical_client": "App"},
+      "low": {"min": 1, "max": 5, "typical_client": "Minimal client"}
+    }
+  }
+}
