@@ -129,10 +129,11 @@ type TLSFingerprint struct {
 	CompressMethods      []uint8  `json:"compress_methods"`
 }
 
-// CombinedFingerprint holds both TLS and HTTP/2 fingerprints
+// CombinedFingerprint holds TLS, HTTP/2, and TCP/IP fingerprints
 type CombinedFingerprint struct {
 	TLS   *TLSFingerprint   `json:"tls"`
 	HTTP2 *HTTP2Fingerprint `json:"http2,omitempty"`
+	TCP   *TCPIPFingerprint `json:"tcp,omitempty"`
 }
 
 type ExtensionInfo struct {
@@ -153,12 +154,25 @@ func main() {
 	certFile := flag.String("cert", "server.crt", "TLS 证书文件路径")
 	keyFile := flag.String("key", "server.key", "TLS 私钥文件路径")
 	host := flag.String("host", "0.0.0.0", "监听地址")
+	iface := flag.String("iface", "", "网络接口名称 (如 en0, eth0)，留空自动检测")
+	disableTCP := flag.Bool("disable-tcp", false, "禁用 TCP/IP 指纹采集")
 	flag.Parse()
 
 	// Load certificate
 	cert, err := tls.LoadX509KeyPair(*certFile, *keyFile)
 	if err != nil {
 		log.Fatalf("Failed to load certificate: %v", err)
+	}
+
+	// Start TCP/IP fingerprint capture (requires root/sudo)
+	if !*disableTCP {
+		if err := StartTCPCapture(*iface, *port); err != nil {
+			log.Printf("[WARNING] TCP fingerprint capture disabled: %v", err)
+			log.Printf("[WARNING] Run with sudo for TCP/IP fingerprinting, or use -disable-tcp flag")
+		} else {
+			// Start cleanup goroutine
+			CleanupOldFingerprints(30 * time.Minute)
+		}
 	}
 
 	// Start raw TCP listener to capture ClientHello
@@ -205,12 +219,22 @@ func handleConnection(conn net.Conn, cert *tls.Certificate) {
 		return
 	}
 
+	// Get client IP for TCP fingerprint lookup
+	clientIP, _, _ := net.SplitHostPort(remoteAddr)
+
+	// Get TCP fingerprint if available
+	tcpFp := GetTCPFingerprint(clientIP)
+
 	// Create combined fingerprint
 	combined := &CombinedFingerprint{
 		TLS: tlsFp,
+		TCP: tcpFp,
 	}
 
 	log.Printf("TLS ClientHello from %s: JA3=%s, JA4=%s", remoteAddr, tlsFp.JA3Hash, tlsFp.JA4)
+	if tcpFp != nil {
+		log.Printf("TCP fingerprint for %s: TTL=%d, OS=%s", clientIP, tcpFp.TTL, tcpFp.InferredOS)
+	}
 
 	// Create TLS config with HTTP/2 support
 	tlsConfig := &tls.Config{

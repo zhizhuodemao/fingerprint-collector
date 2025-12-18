@@ -97,60 +97,164 @@
                         </div>
                     </div>
                     <div class="device-id-item">
+                        <label>TCP/IP (OS)</label>
+                        <div class="id-value">
+                            <code id="tcpId">-</code>
+                            <button class="copy-btn" data-copy="tcpId" title="Copy">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="device-id-item">
+                        <label>Consistency Check</label>
+                        <div class="id-value">
+                            <code id="consistencyStatus" class="consistency-status">-</code>
+                        </div>
+                    </div>
+                    <div class="device-id-item">
                         <label>Collected At</label>
                         <div class="id-value">
                             <code id="collectedAt">-</code>
                         </div>
                     </div>
                 </div>
+                <!-- Consistency Anomalies (if any) -->
+                <div class="anomalies-container" id="anomaliesContainer" style="display:none;">
+                    <div class="anomalies-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        <span>Anomalies Detected</span>
+                    </div>
+                    <ul class="anomalies-list" id="anomaliesList"></ul>
+                </div>
             </section>
 
-            <!-- Browser Fingerprint -->
-            <section class="card" id="browserCard" style="display:none;">
+            <!-- TLS Summary Card -->
+            <section class="card" id="tlsSummaryCard" style="display:none;">
                 <div class="card-header">
-                    <h2>Browser Fingerprint</h2>
-                    <button class="copy-btn" id="copyBrowserBtn" title="Copy JSON">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        <span>Copy JSON</span>
+                    <h2>TLS Fingerprint Summary</h2>
+                    <button class="btn btn-small" id="fetchTlsBtn2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        <span>Refresh</span>
                     </button>
                 </div>
-                <div class="json-container">
-                    <pre id="browserJson">-</pre>
+                <div class="tls-summary-grid">
+                    <div class="tls-summary-item">
+                        <label>JA4</label>
+                        <code id="tlsJa4">-</code>
+                    </div>
+                    <div class="tls-summary-item">
+                        <label>JA3 Hash</label>
+                        <code id="tlsJa3Hash">-</code>
+                    </div>
+                    <div class="tls-summary-item">
+                        <label>TLS Version</label>
+                        <code id="tlsVersion">-</code>
+                    </div>
+                    <div class="tls-summary-item">
+                        <label>ALPN</label>
+                        <code id="tlsAlpn">-</code>
+                    </div>
+                    <div class="tls-summary-item">
+                        <label>HTTP/2 Akamai</label>
+                        <code id="http2Akamai">-</code>
+                    </div>
+                    <div class="tls-summary-item">
+                        <label>HTTP/2 Hash</label>
+                        <code id="http2AkamaiHash">-</code>
+                    </div>
+                    <div class="tls-summary-item">
+                        <label>TCP TTL</label>
+                        <code id="tcpTtl">-</code>
+                    </div>
+                    <div class="tls-summary-item">
+                        <label>TCP Window</label>
+                        <code id="tcpWindow">-</code>
+                    </div>
+                    <div class="tls-summary-item">
+                        <label>TCP Options</label>
+                        <code id="tcpOptions">-</code>
+                    </div>
+                    <div class="tls-summary-item">
+                        <label>System Uptime</label>
+                        <code id="tcpUptime">-</code>
+                    </div>
                 </div>
             </section>
 
-            <!-- TLS Fingerprint -->
-            <section class="card" id="tlsCard" style="display:none;">
-                <div class="card-header">
-                    <h2>TLS Fingerprint</h2>
+            <!-- Browser Fingerprint (Collapsible) -->
+            <section class="card card-collapsible collapsed" id="browserCard" style="display:none;">
+                <div class="card-header card-toggle" data-target="browserContent">
+                    <div class="card-title-row">
+                        <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                        <h2>Browser Fingerprint</h2>
+                    </div>
                     <div class="header-actions">
-                        <button class="btn btn-small" id="fetchTlsBtn">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                            <span>Fetch TLS</span>
-                        </button>
-                        <button class="copy-btn" id="copyTlsBtn" title="Copy JSON">
+                        <button class="copy-btn" id="copyBrowserBtn" title="Copy JSON">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                            <span>Copy JSON</span>
+                            <span>Copy</span>
                         </button>
                     </div>
                 </div>
-                <p class="card-note">First visit <a href="#" id="tlsServerLink" target="_blank">TLS Server</a> and accept the certificate</p>
-                <div class="json-container">
-                    <pre id="tlsJson">-</pre>
+                <div class="card-content" id="browserContent">
+                    <div class="json-container">
+                        <pre id="browserJson">-</pre>
+                    </div>
                 </div>
             </section>
 
-            <!-- Server Info -->
-            <section class="card" id="serverCard" style="display:none;">
-                <div class="card-header">
-                    <h2>Server Collected</h2>
-                    <button class="copy-btn" id="copyServerBtn" title="Copy JSON">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        <span>Copy JSON</span>
-                    </button>
+            <!-- TLS Fingerprint JSON (Collapsible) -->
+            <section class="card card-collapsible collapsed" id="tlsCard" style="display:none;">
+                <div class="card-header card-toggle" data-target="tlsContent">
+                    <div class="card-title-row">
+                        <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                        <h2>TLS Fingerprint (Raw JSON)</h2>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-small" id="fetchTlsBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                            <span>Fetch</span>
+                        </button>
+                        <button class="copy-btn" id="copyTlsBtn" title="Copy JSON">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            <span>Copy</span>
+                        </button>
+                    </div>
                 </div>
-                <div class="json-container">
-                    <pre id="serverJson">-</pre>
+                <div class="card-content" id="tlsContent">
+                    <p class="card-note">First visit <a href="#" id="tlsServerLink" target="_blank">TLS Server</a> and accept the certificate</p>
+                    <div class="json-container">
+                        <pre id="tlsJson">-</pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Server Info (Collapsible) -->
+            <section class="card card-collapsible collapsed" id="serverCard" style="display:none;">
+                <div class="card-header card-toggle" data-target="serverContent">
+                    <div class="card-title-row">
+                        <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                        <h2>Server Collected</h2>
+                    </div>
+                    <div class="header-actions">
+                        <button class="copy-btn" id="copyServerBtn" title="Copy JSON">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            <span>Copy</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-content" id="serverContent">
+                    <div class="json-container">
+                        <pre id="serverJson">-</pre>
+                    </div>
                 </div>
             </section>
         </main>

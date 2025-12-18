@@ -33,6 +33,7 @@ tls_process = None
 TLS_SERVER_PORT = int(os.environ.get('TLS_PORT', 8443))
 TLS_SERVER_HOST = os.environ.get('TLS_HOST', '0.0.0.0')
 SERVER_HOST = os.environ.get('SERVER_HOST', '127.0.0.1')  # 用于前端显示的服务器地址
+ENABLE_TCP = os.environ.get('ENABLE_TCP', '').lower() in ('1', 'true', 'yes')  # 启用 TCP 指纹采集（需要 sudo）
 
 
 def get_tls_server_path():
@@ -78,21 +79,33 @@ def start_tls_server():
             '-key', key_path,
         ]
 
+        # 如果启用 TCP 指纹采集，需要用 sudo 运行
+        if ENABLE_TCP:
+            print("[INFO] TCP fingerprinting enabled, starting TLS server with sudo...")
+            print("[INFO] You may be prompted for your password.")
+            cmd = ['sudo'] + cmd
+
         tls_process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             cwd=tls_dir,
+            # sudo 需要从终端读取密码
+            stdin=None if not ENABLE_TCP else subprocess.DEVNULL,
         )
 
-        # 等待服务启动
-        time.sleep(0.5)
+        # 等待服务启动（sudo 模式需要更长时间）
+        time.sleep(1.0 if ENABLE_TCP else 0.5)
 
         if tls_process.poll() is None:
-            print(f"[INFO] TLS Fingerprint Server started on https://{TLS_SERVER_HOST}:{TLS_SERVER_PORT}")
+            tcp_status = " (with TCP fingerprinting)" if ENABLE_TCP else ""
+            print(f"[INFO] TLS Fingerprint Server started on https://{TLS_SERVER_HOST}:{TLS_SERVER_PORT}{tcp_status}")
             return True
         else:
             print(f"[ERROR] TLS server failed to start")
+            if ENABLE_TCP:
+                print("[HINT] Make sure you have sudo privileges and have entered the correct password.")
+                print("[HINT] You can also run: sudo -v (to cache credentials) before starting the app.")
             return False
 
     except Exception as e:
@@ -105,6 +118,14 @@ def stop_tls_server():
     global tls_process
     if tls_process:
         print("[INFO] Stopping TLS server...")
+        if ENABLE_TCP:
+            # sudo 启动的进程需要用 sudo kill
+            try:
+                # 获取实际的 TLS server 进程 PID（sudo 的子进程）
+                subprocess.run(['sudo', 'pkill', '-f', f'tls-server.*-port.*{TLS_SERVER_PORT}'],
+                              timeout=5, capture_output=True)
+            except Exception as e:
+                print(f"[WARNING] Failed to kill sudo process: {e}")
         tls_process.terminate()
         try:
             tls_process.wait(timeout=5)
@@ -900,6 +921,25 @@ def get_config():
 if __name__ == '__main__':
     # 启动 TLS 指纹服务
     print('[INFO] Starting services...')
+    if ENABLE_TCP:
+        print('[INFO] TCP fingerprinting is ENABLED (requires sudo)')
+        # 检查 sudo 凭据是否已缓存
+        result = subprocess.run(['sudo', '-n', 'true'], capture_output=True)
+        if result.returncode != 0:
+            print('[WARN] sudo credentials not cached.')
+            print('[WARN] Please enter your password when prompted...')
+            # 尝试提前验证 sudo（会提示输入密码）
+            try:
+                subprocess.run(['sudo', '-v'], check=True)
+                print('[INFO] sudo credentials cached successfully.')
+            except (subprocess.CalledProcessError, KeyboardInterrupt):
+                print('[ERROR] Failed to get sudo credentials. Exiting.')
+                print('[HINT] Run without ENABLE_TCP or try: sudo -v && ENABLE_TCP=1 python app.py')
+                sys.exit(1)
+    else:
+        print('[INFO] TCP fingerprinting is DISABLED')
+        print('[HINT] Set ENABLE_TCP=1 to enable TCP/IP fingerprinting (requires sudo)')
+
     start_tls_server()
 
     print(f'[INFO] Fingerprint Collector running on http://0.0.0.0:5000')

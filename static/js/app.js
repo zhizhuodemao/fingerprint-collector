@@ -97,6 +97,25 @@ class FingerprintApp {
                     const http2Id = this.tlsData.http2.akamai_hash?.substring(0, 16) || '-';
                     http2IdEl.textContent = http2Id;
                 }
+
+                // Update TCP/IP ID if present
+                const tcpIdEl = document.getElementById('tcpId');
+                if (tcpIdEl && this.tlsData.tcp) {
+                    tcpIdEl.textContent = this.tlsData.tcp.inferred_os || '-';
+                    if (this.tlsData.tcp.anomalies && this.tlsData.tcp.anomalies.length > 0) {
+                        tcpIdEl.style.color = '#e74c3c';
+                        tcpIdEl.title = this.tlsData.tcp.anomalies.join('\n');
+                    } else {
+                        tcpIdEl.title = `TTL: ${this.tlsData.tcp.ttl}, Window: ${this.tlsData.tcp.window_size}`;
+                    }
+                }
+
+                // 恢复 TLS 摘要卡片
+                document.getElementById('tlsSummaryCard').style.display = 'block';
+                this.updateTlsSummary(this.tlsData);
+
+                // 恢复一致性校验状态
+                this.updateConsistencyCheck(this.tlsData.tcp);
             }
         } catch (e) {
             console.error('Failed to restore data:', e);
@@ -156,9 +175,22 @@ class FingerprintApp {
 
         // TLS 获取按钮
         document.getElementById('fetchTlsBtn')?.addEventListener('click', () => this.fetchTls());
+        document.getElementById('fetchTlsBtn2')?.addEventListener('click', () => this.fetchTls());
 
         // 主题切换
         document.getElementById('themeToggle')?.addEventListener('click', () => this.toggleTheme());
+
+        // 折叠卡片切换
+        document.querySelectorAll('.card-toggle').forEach(header => {
+            header.addEventListener('click', (e) => {
+                // 如果点击的是按钮，不触发折叠
+                if (e.target.closest('button')) return;
+                const card = header.closest('.card-collapsible');
+                if (card) {
+                    card.classList.toggle('collapsed');
+                }
+            });
+        });
 
         // 复制按钮 - 直接从 pre 元素读取内容
         document.getElementById('copyBrowserBtn')?.addEventListener('click', () => {
@@ -265,13 +297,14 @@ class FingerprintApp {
             const result = await fetchTlsFingerprint(this.config);
 
             if (result && result.success) {
-                // New response format: fingerprint contains { tls, http2 }
+                // New response format: fingerprint contains { tls, http2, tcp }
                 const fpData = result.fingerprint;
 
-                // Store both TLS and HTTP/2 data
+                // Store TLS, HTTP/2, and TCP data
                 this.tlsData = {
                     tls: fpData.tls,
-                    http2: fpData.http2
+                    http2: fpData.http2,
+                    tcp: fpData.tcp
                 };
 
                 document.getElementById('tlsJson').textContent = JSON.stringify(this.tlsData, null, 2);
@@ -287,6 +320,33 @@ class FingerprintApp {
                     const http2Id = fpData.http2.akamai_hash?.substring(0, 16) || '-';
                     http2IdEl.textContent = http2Id;
                 }
+
+                // 更新 TCP/IP ID (如果有)
+                const tcpIdEl = document.getElementById('tcpId');
+                if (tcpIdEl) {
+                    if (fpData.tcp) {
+                        // 显示推断的 OS 和置信度
+                        const tcpInfo = fpData.tcp.inferred_os || 'Unknown';
+                        tcpIdEl.textContent = tcpInfo;
+                        // 如果有异常，添加警告样式
+                        if (fpData.tcp.anomalies && fpData.tcp.anomalies.length > 0) {
+                            tcpIdEl.style.color = '#e74c3c';
+                            tcpIdEl.title = fpData.tcp.anomalies.join('\n');
+                        } else {
+                            tcpIdEl.style.color = '';
+                            tcpIdEl.title = `TTL: ${fpData.tcp.ttl}, Window: ${fpData.tcp.window_size}`;
+                        }
+                    } else {
+                        tcpIdEl.textContent = '-';
+                        tcpIdEl.title = 'TCP fingerprinting requires sudo';
+                    }
+                }
+
+                // 更新 TLS 摘要卡片
+                this.updateTlsSummary(fpData);
+
+                // 更新一致性校验状态
+                this.updateConsistencyCheck(fpData.tcp);
 
                 // 保存数据
                 this.saveData();
@@ -314,6 +374,7 @@ class FingerprintApp {
     displayResults(result) {
         // 显示所有卡片
         document.getElementById('deviceCard').style.display = 'block';
+        document.getElementById('tlsSummaryCard').style.display = 'block';
         document.getElementById('browserCard').style.display = 'block';
         document.getElementById('tlsCard').style.display = 'block';
         document.getElementById('serverCard').style.display = 'block';
@@ -330,6 +391,11 @@ class FingerprintApp {
         badge.textContent = `${confidence}% Confidence`;
         badge.className = confidence >= 80 ? 'badge success' : 'badge';
 
+        // 一致性校验状态 - 等待 TLS 数据后更新
+        const consistencyEl = document.getElementById('consistencyStatus');
+        consistencyEl.textContent = 'Checking...';
+        consistencyEl.className = 'consistency-status';
+
         // Browser JSON (不包含 deviceId，避免重复)
         const browserData = { ...this.fingerprint };
         delete browserData.deviceId;
@@ -338,6 +404,60 @@ class FingerprintApp {
         // Server JSON
         if (this.serverData) {
             document.getElementById('serverJson').textContent = JSON.stringify(this.serverData, null, 2);
+        }
+    }
+
+    // 更新 TLS 摘要卡片
+    updateTlsSummary(fpData) {
+        if (!fpData) return;
+
+        const tls = fpData.tls || {};
+        const http2 = fpData.http2 || {};
+        const tcp = fpData.tcp || {};
+
+        // TLS 字段
+        document.getElementById('tlsJa4').textContent = tls.ja4 || '-';
+        document.getElementById('tlsJa3Hash').textContent = tls.ja3_hash || '-';
+        document.getElementById('tlsVersion').textContent = tls.tls_version_negotiated || '-';
+        document.getElementById('tlsAlpn').textContent = (tls.alpn || []).join(', ') || '-';
+
+        // HTTP/2 字段
+        document.getElementById('http2Akamai').textContent = http2.akamai || '-';
+        document.getElementById('http2AkamaiHash').textContent = http2.akamai_hash || '-';
+
+        // TCP 字段
+        document.getElementById('tcpTtl').textContent = tcp.ttl ? `${tcp.ttl} (初始: ${tcp.initial_ttl})` : '-';
+        document.getElementById('tcpWindow').textContent = tcp.window_size || '-';
+        document.getElementById('tcpOptions').textContent = tcp.options_str || '-';
+        document.getElementById('tcpUptime').textContent = tcp.timestamp?.uptime || '-';
+    }
+
+    // 更新一致性校验状态
+    updateConsistencyCheck(tcp) {
+        const consistencyEl = document.getElementById('consistencyStatus');
+        const anomaliesContainer = document.getElementById('anomaliesContainer');
+        const anomaliesList = document.getElementById('anomaliesList');
+
+        if (!tcp) {
+            consistencyEl.textContent = 'N/A';
+            consistencyEl.className = 'consistency-status';
+            anomaliesContainer.style.display = 'none';
+            return;
+        }
+
+        const anomalies = tcp.anomalies || [];
+
+        if (anomalies.length === 0) {
+            consistencyEl.textContent = '✓ PASS';
+            consistencyEl.className = 'consistency-status pass';
+            anomaliesContainer.style.display = 'none';
+        } else {
+            consistencyEl.textContent = '✗ FAIL';
+            consistencyEl.className = 'consistency-status fail';
+
+            // 显示异常列表
+            anomaliesList.innerHTML = anomalies.map(a => `<li>${a}</li>`).join('');
+            anomaliesContainer.style.display = 'block';
         }
     }
 

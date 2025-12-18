@@ -7,10 +7,12 @@ A comprehensive browser fingerprint collection tool that captures TLS, HTTP/2, C
 - **Client Fingerprints**: Canvas, WebGL, Audio, Navigator, Screen, Fonts, WebRTC IPs
 - **TLS Fingerprints**: JA3, JA4, Cipher Suites, Extensions
 - **HTTP/2 Fingerprints**: Akamai format (SETTINGS, WINDOW_UPDATE, PRIORITY, Pseudo-header order)
+- **TCP/IP Fingerprints**: TTL, Window Size, TCP Options, OS inference (requires sudo)
 - **Server Fingerprints**: HTTP Headers, IP, Client Hints
 - **Device ID**: Stable browser identifier using MurmurHash3
 - **Automation Detection**: WebDriver, Selenium, Puppeteer detection
 - **Incognito Detection**: Private browsing mode detection
+- **Cross-Layer Consistency Check**: Detect bots by comparing User-Agent with TCP/IP fingerprint
 
 ## Quick Start
 
@@ -52,9 +54,11 @@ fingerprint-collector/
 └── tls-server/
     ├── main.go                 # TLS + HTTP/2 fingerprint server
     ├── http2.go                # HTTP/2 frame parsing
-    ├── tls-server-darwin-arm64 # macOS ARM64 binary
-    ├── tls-server-linux-amd64  # Linux x86_64 binary
-    ├── tls-server-windows-amd64.exe # Windows binary
+    ├── tcp.go                  # TCP/IP fingerprinting (gopacket)
+    ├── tcp_stub.go             # Stub for builds without libpcap
+    ├── tls-server-darwin-arm64 # macOS ARM64 binary (full)
+    ├── tls-server-linux-amd64  # Linux x86_64 binary (lite)
+    ├── tls-server-windows-amd64.exe # Windows binary (lite)
     ├── server.crt              # TLS certificate (generate locally)
     └── server.key              # TLS private key (generate locally)
 ```
@@ -68,6 +72,7 @@ fingerprint-collector/
 | Device ID (Core) | Hardware signals (Canvas, WebGL, Audio, Fonts) | High |
 | TLS ID (JA4) | TLS ClientHello parameters | High |
 | HTTP/2 ID (Akamai) | HTTP/2 connection parameters | High |
+| TCP/IP Signature | TTL, Window Size, TCP Options | High |
 
 ### TLS Fingerprint (JA3/JA4)
 
@@ -109,6 +114,48 @@ Format: `SETTINGS|WINDOW_UPDATE|PRIORITY|Pseudo-Header-Order`
 | PRIORITY | Stream priority (if sent) | `0` or `3:0:0:201` |
 | Pseudo-Header | Order of :method, :authority, :scheme, :path | `m,a,s,p` (Chrome) |
 
+### TCP/IP Fingerprint (OS Detection)
+
+Captures raw TCP SYN packet characteristics for OS inference. Requires sudo/root.
+
+```json
+{
+  "ttl": 52,
+  "initial_ttl": 64,
+  "ip_version": 4,
+  "ip_flags": "DF",
+  "window_size": 29200,
+  "mss": 1460,
+  "window_scale": 7,
+  "options": [
+    {"kind": 2, "name": "MSS", "value": 1460},
+    {"kind": 4, "name": "SACK_PERM"},
+    {"kind": 8, "name": "Timestamp"},
+    {"kind": 3, "name": "WScale", "value": 7}
+  ],
+  "options_str": "M1460,S,T,N,W7",
+  "inferred_os": "Linux",
+  "os_confidence": "high"
+}
+```
+
+| TTL | Inferred OS | Notes |
+|-----|-------------|-------|
+| 128 | Windows | Usually no TCP Timestamp |
+| 64 | Linux/macOS/iOS/Android | Has TCP Timestamp |
+| 255 | Network Device | Router, firewall |
+
+### Cross-Layer Consistency Check
+
+Detects bots by comparing User-Agent claims with TCP/IP fingerprint:
+
+| Scenario | User-Agent | TCP TTL | Result |
+|----------|------------|---------|--------|
+| Normal | Windows Chrome | 128 | Pass |
+| **Anomaly** | Windows Chrome | 64 | **Bot detected** (Linux server) |
+| Normal | macOS Safari | 64 | Pass |
+| **Anomaly** | Windows + TCP Timestamp | 128 | **Suspicious** |
+
 ### Browser Fingerprints
 
 | Category | Signals |
@@ -148,17 +195,45 @@ Format: `SETTINGS|WINDOW_UPDATE|PRIORITY|Pseudo-Header-Order`
 
 ### Build TLS Server
 
+**Full version (with TCP fingerprinting)** - requires libpcap:
+
 ```bash
 cd tls-server
 
-# macOS ARM64
-GOOS=darwin GOARCH=arm64 go build -o tls-server-darwin-arm64 .
+# Install libpcap first
+# macOS: brew install libpcap (or already installed)
+# Linux: apt install libpcap-dev
+# Windows: Install Npcap
 
-# Linux x86_64
-GOOS=linux GOARCH=amd64 go build -o tls-server-linux-amd64 .
+# Build for current platform (native build required for TCP fingerprinting)
+go build -o tls-server .
 
-# Windows x86_64
-GOOS=windows GOARCH=amd64 go build -o tls-server-windows-amd64.exe .
+# Run with sudo for TCP fingerprinting
+sudo ./tls-server
+```
+
+**Lite version (without TCP fingerprinting)** - cross-compilable:
+
+```bash
+cd tls-server
+
+# Linux x86_64 (no TCP fingerprinting)
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags nolibpcap -o tls-server-linux-amd64 .
+
+# Windows x86_64 (no TCP fingerprinting)
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags nolibpcap -o tls-server-windows-amd64.exe .
+```
+
+### TLS Server Command Line Options
+
+```bash
+./tls-server -h
+  -port int       Listen port (default 8443)
+  -host string    Listen address (default "0.0.0.0")
+  -cert string    TLS certificate file (default "server.crt")
+  -key string     TLS private key file (default "server.key")
+  -iface string   Network interface for TCP capture (auto-detect if empty)
+  -disable-tcp    Disable TCP/IP fingerprinting
 ```
 
 ### Generate TLS Certificate
@@ -184,6 +259,9 @@ openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt \
 - **JA3 Instability**: Chrome randomizes cipher suite order; use JA4 for stability
 - **HTTP/2**: Requires TLS 1.2+ and ALPN negotiation
 - **GREASE**: Random values are filtered from fingerprints
+- **TCP/IP Fingerprinting**: Requires root/sudo privileges and libpcap
+- **NAT/VPN**: TTL may change after NAT, but initial value can still be inferred
+- **Cross-compilation**: TCP fingerprinting requires native build with CGO
 
 ## References
 
