@@ -129,6 +129,12 @@ type TLSFingerprint struct {
 	CompressMethods      []uint8  `json:"compress_methods"`
 }
 
+// CombinedFingerprint holds both TLS and HTTP/2 fingerprints
+type CombinedFingerprint struct {
+	TLS   *TLSFingerprint   `json:"tls"`
+	HTTP2 *HTTP2Fingerprint `json:"http2,omitempty"`
+}
+
 type ExtensionInfo struct {
 	Name string      `json:"name"`
 	ID   uint16      `json:"id"`
@@ -137,7 +143,7 @@ type ExtensionInfo struct {
 
 // Store
 var (
-	fingerprintStore = make(map[string]*TLSFingerprint)
+	fingerprintStore = make(map[string]*CombinedFingerprint)
 	storeMutex       sync.RWMutex
 )
 
@@ -192,28 +198,26 @@ func handleConnection(conn net.Conn, cert *tls.Certificate) {
 	clientHelloData := buf[:n]
 	remoteAddr := conn.RemoteAddr().String()
 
-	// Parse ClientHello
-	fp, err := parseClientHello(clientHelloData)
+	// Parse ClientHello for TLS fingerprint
+	tlsFp, err := parseClientHello(clientHelloData)
 	if err != nil {
 		log.Printf("Parse ClientHello error: %v", err)
 		return
 	}
 
-	// Store fingerprint
-	storeMutex.Lock()
-	fingerprintStore[remoteAddr] = fp
-	// Also store by IP only
-	host, _, _ := net.SplitHostPort(remoteAddr)
-	fingerprintStore[host] = fp
-	storeMutex.Unlock()
+	// Create combined fingerprint
+	combined := &CombinedFingerprint{
+		TLS: tlsFp,
+	}
 
-	log.Printf("TLS ClientHello from %s: JA3=%s", remoteAddr, fp.JA3Hash)
+	log.Printf("TLS ClientHello from %s: JA3=%s, JA4=%s", remoteAddr, tlsFp.JA3Hash, tlsFp.JA4)
 
-	// Create a new connection that replays the ClientHello
+	// Create TLS config with HTTP/2 support
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{*cert},
-		MinVersion:   tls.VersionTLS10,
+		MinVersion:   tls.VersionTLS12,
 		MaxVersion:   tls.VersionTLS13,
+		NextProtos:   []string{"h2", "http/1.1"}, // Enable HTTP/2
 	}
 
 	// Create a wrapper that replays the ClientHello data
@@ -232,8 +236,26 @@ func handleConnection(conn net.Conn, cert *tls.Certificate) {
 		return
 	}
 
-	// Handle HTTP
-	handleHTTP(tlsConn, remoteAddr)
+	// Check negotiated protocol
+	negotiatedProto := tlsConn.ConnectionState().NegotiatedProtocol
+	isHTTP2 := negotiatedProto == "h2"
+
+	log.Printf("Negotiated protocol: %s (HTTP/2: %v)", negotiatedProto, isHTTP2)
+
+	if isHTTP2 {
+		// Handle HTTP/2 connection with fingerprinting
+		handleHTTP2(tlsConn, remoteAddr, combined)
+	} else {
+		// Store fingerprint (HTTP/1.1, no HTTP/2 fingerprint)
+		storeMutex.Lock()
+		fingerprintStore[remoteAddr] = combined
+		host, _, _ := net.SplitHostPort(remoteAddr)
+		fingerprintStore[host] = combined
+		storeMutex.Unlock()
+
+		// Handle HTTP/1.1
+		handleHTTP(tlsConn, remoteAddr)
+	}
 }
 
 // replayConn wraps a connection and replays initial data
@@ -253,6 +275,233 @@ func (c *replayConn) Read(b []byte) (int, error) {
 		return n, nil
 	}
 	return c.Conn.Read(b)
+}
+
+// handleHTTP2 handles HTTP/2 connections with fingerprint extraction
+func handleHTTP2(conn net.Conn, remoteAddr string, combined *CombinedFingerprint) {
+	defer conn.Close()
+
+	conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+
+	// Read HTTP/2 connection preface and initial frames
+	buf := make([]byte, 32768)
+	n, err := conn.Read(buf)
+	if err != nil {
+		log.Printf("HTTP/2 read error: %v", err)
+		return
+	}
+
+	data := buf[:n]
+
+	// Verify HTTP/2 preface
+	if !IsHTTP2Preface(data) {
+		log.Printf("Invalid HTTP/2 preface")
+		return
+	}
+
+	log.Printf("HTTP/2 connection preface received, %d bytes total", n)
+
+	// Parse HTTP/2 frames after preface (24 bytes)
+	frameData := data[len(http2Preface):]
+	http2Fp, err := ParseHTTP2Frames(frameData)
+	if err != nil {
+		log.Printf("HTTP/2 parse error: %v", err)
+	} else {
+		combined.HTTP2 = http2Fp
+		log.Printf("HTTP/2 fingerprint: %s", http2Fp.Akamai)
+	}
+
+	// Store combined fingerprint
+	storeMutex.Lock()
+	fingerprintStore[remoteAddr] = combined
+	host, _, _ := net.SplitHostPort(remoteAddr)
+	fingerprintStore[host] = combined
+	storeMutex.Unlock()
+
+	// Now we need to respond as an HTTP/2 server
+	// Send SETTINGS frame (server settings)
+	serverSettings := buildServerSettingsFrame()
+	conn.Write(serverSettings)
+
+	// Send SETTINGS ACK for client's SETTINGS
+	settingsAck := buildSettingsAckFrame()
+	conn.Write(settingsAck)
+
+	// Read more data (HEADERS frame with actual request)
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+
+	// If we already have HEADERS in the initial data, process it
+	// Otherwise, read more
+	headerData := frameData
+	if !containsHeadersFrame(frameData) {
+		n2, err := conn.Read(buf)
+		if err == nil && n2 > 0 {
+			headerData = append(headerData, buf[:n2]...)
+		}
+	}
+
+	// Find and respond to HEADERS frame
+	respondToHTTP2Request(conn, headerData, combined)
+}
+
+// buildServerSettingsFrame creates a SETTINGS frame for server
+func buildServerSettingsFrame() []byte {
+	// SETTINGS frame with some default values
+	// Format: Length(3) + Type(1) + Flags(1) + StreamID(4) + Payload
+	settings := []byte{
+		// SETTINGS_MAX_CONCURRENT_STREAMS = 100
+		0x00, 0x03, 0x00, 0x00, 0x00, 0x64,
+		// SETTINGS_INITIAL_WINDOW_SIZE = 65535
+		0x00, 0x04, 0x00, 0x00, 0xff, 0xff,
+	}
+
+	frame := make([]byte, 9+len(settings))
+	// Length (3 bytes)
+	frame[0] = byte(len(settings) >> 16)
+	frame[1] = byte(len(settings) >> 8)
+	frame[2] = byte(len(settings))
+	// Type = SETTINGS (0x04)
+	frame[3] = 0x04
+	// Flags = 0
+	frame[4] = 0x00
+	// Stream ID = 0 (4 bytes)
+	frame[5] = 0x00
+	frame[6] = 0x00
+	frame[7] = 0x00
+	frame[8] = 0x00
+	// Payload
+	copy(frame[9:], settings)
+
+	return frame
+}
+
+// buildSettingsAckFrame creates a SETTINGS ACK frame
+func buildSettingsAckFrame() []byte {
+	return []byte{
+		0x00, 0x00, 0x00, // Length = 0
+		0x04,             // Type = SETTINGS
+		0x01,             // Flags = ACK
+		0x00, 0x00, 0x00, 0x00, // Stream ID = 0
+	}
+}
+
+// containsHeadersFrame checks if data contains a HEADERS frame
+func containsHeadersFrame(data []byte) bool {
+	pos := 0
+	for pos+9 <= len(data) {
+		frameLen := int(data[pos])<<16 | int(data[pos+1])<<8 | int(data[pos+2])
+		frameType := data[pos+3]
+
+		if frameType == FrameHeaders {
+			return true
+		}
+
+		pos += 9 + frameLen
+		if pos > len(data) {
+			break
+		}
+	}
+	return false
+}
+
+// respondToHTTP2Request sends an HTTP/2 response
+func respondToHTTP2Request(conn net.Conn, data []byte, combined *CombinedFingerprint) {
+	// Find the stream ID from HEADERS frame
+	streamID := uint32(1) // Default to stream 1
+
+	pos := 0
+	for pos+9 <= len(data) {
+		frameLen := int(data[pos])<<16 | int(data[pos+1])<<8 | int(data[pos+2])
+		frameType := data[pos+3]
+
+		if frameType == FrameHeaders {
+			streamID = binary.BigEndian.Uint32(data[pos+5:pos+9]) & 0x7FFFFFFF
+			break
+		}
+
+		pos += 9 + frameLen
+		if pos > len(data) {
+			break
+		}
+	}
+
+	// Build JSON response
+	response := map[string]interface{}{
+		"success":     true,
+		"fingerprint": combined,
+	}
+	jsonBody, _ := json.MarshalIndent(response, "", "  ")
+
+	// Send HEADERS frame with :status 200
+	headersFrame := buildHTTP2HeadersFrame(streamID, len(jsonBody))
+	conn.Write(headersFrame)
+
+	// Send DATA frame with response body
+	dataFrame := buildHTTP2DataFrame(streamID, jsonBody)
+	conn.Write(dataFrame)
+}
+
+// buildHTTP2HeadersFrame builds a HEADERS frame with status 200
+func buildHTTP2HeadersFrame(streamID uint32, contentLength int) []byte {
+	// Simple HPACK encoded headers using indexed and literal representations
+	// See RFC 7541 for HPACK specification
+	var headers []byte
+
+	// :status 200 - indexed header field (index 8 in static table)
+	headers = append(headers, 0x88)
+
+	// content-type: application/json - literal header with incremental indexing
+	// Format: 0x40 | index (0 = new name)
+	headers = append(headers, 0x40)
+	// Header name length (without Huffman)
+	headers = append(headers, 0x0c) // 12 = len("content-type")
+	headers = append(headers, []byte("content-type")...)
+	// Header value length
+	headers = append(headers, 0x10) // 16 = len("application/json")
+	headers = append(headers, []byte("application/json")...)
+
+	// access-control-allow-origin: * - literal header without indexing
+	// Format: 0x00 | 0 (new name)
+	headers = append(headers, 0x00)
+	headers = append(headers, 0x1b) // 27 = len("access-control-allow-origin")
+	headers = append(headers, []byte("access-control-allow-origin")...)
+	headers = append(headers, 0x01) // 1 = len("*")
+	headers = append(headers, '*')
+
+	frame := make([]byte, 9+len(headers))
+	// Length (3 bytes big-endian)
+	frame[0] = byte(len(headers) >> 16)
+	frame[1] = byte(len(headers) >> 8)
+	frame[2] = byte(len(headers))
+	// Type = HEADERS (0x01)
+	frame[3] = 0x01
+	// Flags = END_HEADERS (0x04)
+	frame[4] = 0x04
+	// Stream ID (4 bytes)
+	binary.BigEndian.PutUint32(frame[5:9], streamID)
+	// Payload
+	copy(frame[9:], headers)
+
+	return frame
+}
+
+// buildHTTP2DataFrame builds a DATA frame
+func buildHTTP2DataFrame(streamID uint32, body []byte) []byte {
+	frame := make([]byte, 9+len(body))
+	// Length
+	frame[0] = byte(len(body) >> 16)
+	frame[1] = byte(len(body) >> 8)
+	frame[2] = byte(len(body))
+	// Type = DATA
+	frame[3] = 0x00
+	// Flags = END_STREAM (0x01)
+	frame[4] = 0x01
+	// Stream ID
+	binary.BigEndian.PutUint32(frame[5:9], streamID)
+	// Payload
+	copy(frame[9:], body)
+
+	return frame
 }
 
 func parseClientHello(data []byte) (*TLSFingerprint, error) {

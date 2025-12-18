@@ -84,9 +84,19 @@ class FingerprintApp {
             }
             if (this.tlsData) {
                 document.getElementById('tlsJson').textContent = JSON.stringify(this.tlsData, null, 2);
-                const tlsId = this.tlsData?.ja4?.substring(0, 16) ||
-                              this.tlsData?.ja3_hash?.substring(0, 16) || '-';
+
+                // Handle both old format (direct ja4) and new format (tls.ja4)
+                const tlsObj = this.tlsData.tls || this.tlsData;
+                const tlsId = tlsObj?.ja4?.substring(0, 16) ||
+                              tlsObj?.ja3_hash?.substring(0, 16) || '-';
                 document.getElementById('tlsId').textContent = tlsId;
+
+                // Update HTTP/2 ID if present
+                const http2IdEl = document.getElementById('http2Id');
+                if (http2IdEl && this.tlsData.http2) {
+                    const http2Id = this.tlsData.http2.akamai_hash?.substring(0, 16) || '-';
+                    http2IdEl.textContent = http2Id;
+                }
             }
         } catch (e) {
             console.error('Failed to restore data:', e);
@@ -255,13 +265,28 @@ class FingerprintApp {
             const result = await fetchTlsFingerprint(this.config);
 
             if (result && result.success) {
-                this.tlsData = result.fingerprint;
+                // New response format: fingerprint contains { tls, http2 }
+                const fpData = result.fingerprint;
+
+                // Store both TLS and HTTP/2 data
+                this.tlsData = {
+                    tls: fpData.tls,
+                    http2: fpData.http2
+                };
+
                 document.getElementById('tlsJson').textContent = JSON.stringify(this.tlsData, null, 2);
 
                 // 更新 TLS ID (优先使用 JA4，更稳定)
-                const tlsId = this.tlsData?.ja4?.substring(0, 16) ||
-                              this.tlsData?.ja3_hash?.substring(0, 16) || '-';
+                const tlsId = fpData.tls?.ja4?.substring(0, 16) ||
+                              fpData.tls?.ja3_hash?.substring(0, 16) || '-';
                 document.getElementById('tlsId').textContent = tlsId;
+
+                // 更新 HTTP/2 ID (如果有)
+                const http2IdEl = document.getElementById('http2Id');
+                if (http2IdEl && fpData.http2) {
+                    const http2Id = fpData.http2.akamai_hash?.substring(0, 16) || '-';
+                    http2IdEl.textContent = http2Id;
+                }
 
                 // 保存数据
                 this.saveData();
