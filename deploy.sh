@@ -1,6 +1,7 @@
 #!/bin/bash
 # Fingerprint Collector 一键部署脚本
 # 适用于 Ubuntu/Debian 和 CentOS/RHEL
+# 使用 uv 管理 Python 环境
 
 set -e
 
@@ -10,6 +11,7 @@ DEFAULT_HOST="222.73.60.30"
 TLS_PORT="${TLS_PORT:-8443}"
 FLASK_PORT="${FLASK_PORT:-5000}"
 ENABLE_TCP="${ENABLE_TCP:-1}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 
 # ============ 颜色输出 ============
 RED='\033[0;31m'
@@ -23,9 +25,63 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
+# ============ 查找 uv 命令 ============
+find_uv() {
+    # 直接可用
+    if command -v uv >/dev/null 2>&1; then
+        UV_CMD="uv"
+        return 0
+    fi
+
+    # 常见安装路径
+    local uv_paths=(
+        "$HOME/.cargo/bin/uv"
+        "$HOME/.local/bin/uv"
+        "/root/.cargo/bin/uv"
+        "/root/.local/bin/uv"
+        "/usr/local/bin/uv"
+    )
+
+    for path in "${uv_paths[@]}"; do
+        if [ -x "$path" ]; then
+            UV_CMD="$path"
+            return 0
+        fi
+    done
+
+    # 如果是 sudo 运行，尝试获取原用户的 uv
+    if [ -n "$SUDO_USER" ]; then
+        local user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+        if [ -x "$user_home/.cargo/bin/uv" ]; then
+            UV_CMD="$user_home/.cargo/bin/uv"
+            return 0
+        fi
+        if [ -x "$user_home/.local/bin/uv" ]; then
+            UV_CMD="$user_home/.local/bin/uv"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+# ============ 安装 uv ============
+install_uv() {
+    log_step "安装 uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    # 重新查找
+    export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+    if find_uv; then
+        log_info "uv 安装成功: $UV_CMD"
+    else
+        log_error "uv 安装失败"
+        exit 1
+    fi
+}
+
 # ============ 交互式配置 SERVER_HOST ============
 configure_host() {
-    # 如果已通过环境变量设置，则跳过交互
     if [ -n "$SERVER_HOST" ]; then
         log_info "使用环境变量 SERVER_HOST: $SERVER_HOST"
         return
@@ -74,13 +130,13 @@ install_dependencies() {
     case $OS in
         ubuntu|debian)
             apt-get update -qq
-            apt-get install -y -qq python3 python3-pip python3-venv libpcap-dev golang-go curl
+            apt-get install -y -qq libpcap-dev golang-go curl
             ;;
         centos|rhel|fedora)
-            yum install -y python3 python3-pip libpcap-devel golang curl
+            yum install -y libpcap-devel golang curl
             ;;
         *)
-            log_warn "未知系统，请手动安装: python3, pip, libpcap-dev, golang"
+            log_warn "未知系统，请手动安装: libpcap-dev, golang, curl"
             ;;
     esac
 
@@ -93,8 +149,23 @@ check_dependencies() {
 
     local missing=()
 
-    command -v python3 >/dev/null 2>&1 || missing+=("python3")
-    command -v pip3 >/dev/null 2>&1 || missing+=("pip3")
+    # 检查 uv
+    if ! find_uv; then
+        log_warn "未找到 uv"
+        read -p "是否自动安装 uv? [Y/n] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            install_uv
+        else
+            log_error "需要 uv 来管理 Python 环境"
+            exit 1
+        fi
+    else
+        log_info "uv 路径: $UV_CMD"
+        log_info "uv 版本: $($UV_CMD --version)"
+    fi
+
+    # 检查 Go
     command -v go >/dev/null 2>&1 || missing+=("golang")
 
     # 检查 libpcap
@@ -121,22 +192,22 @@ check_dependencies() {
     fi
 }
 
-# ============ 安装 Python 依赖 ============
+# ============ 安装 Python 依赖 (使用 uv) ============
 install_python_deps() {
-    log_step "安装 Python 依赖..."
+    log_step "安装 Python 依赖 (使用 uv)..."
 
     cd "$APP_DIR"
 
     # 创建虚拟环境
     if [ ! -d ".venv" ]; then
-        python3 -m venv .venv
+        log_info "创建 Python $PYTHON_VERSION 虚拟环境..."
+        $UV_CMD venv --python $PYTHON_VERSION .venv
         log_info "虚拟环境已创建"
     fi
 
-    # 激活并安装
-    source .venv/bin/activate
-    pip install --upgrade pip -q
-    pip install -r requirements.txt -q
+    # 安装依赖
+    log_info "安装依赖包..."
+    $UV_CMD pip install -r requirements.txt --quiet
 
     log_info "Python 依赖安装完成"
 }
@@ -160,7 +231,7 @@ compile_tls_server() {
     # 编译
     log_info "正在编译 (需要几分钟)..."
     go mod tidy
-    go build -o tls-server-linux-amd64 .
+    CGO_ENABLED=1 go build -o tls-server-linux-amd64 .
     chmod +x tls-server-linux-amd64
 
     log_info "TLS Server 编译完成"
@@ -173,7 +244,6 @@ generate_certificate() {
     cd "$APP_DIR/tls-server"
 
     if [ -f "server.crt" ] && [ -f "server.key" ]; then
-        # 检查证书是否过期
         if openssl x509 -checkend 86400 -noout -in server.crt 2>/dev/null; then
             log_info "证书有效，跳过生成"
             return
@@ -322,6 +392,7 @@ main() {
     echo ""
     echo -e "${BLUE}======================================${NC}"
     echo -e "${BLUE}  Fingerprint Collector 部署脚本${NC}"
+    echo -e "${BLUE}  (使用 uv 管理 Python 环境)${NC}"
     echo -e "${BLUE}======================================${NC}"
     echo ""
 
